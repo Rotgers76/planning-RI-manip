@@ -7,6 +7,10 @@ import json
 import os
 import io
 
+# --- IMPORTATIONS POUR EXCEL ---
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
+
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Planning RI Pro", layout="wide", initial_sidebar_state="expanded")
 
@@ -33,14 +37,21 @@ st.markdown("""
 # --- TRADUCTIONS FRANÇAISES ---
 JOURS_FR = {"Monday": "Lundi", "Tuesday": "Mardi", "Wednesday": "Mercredi",
             "Thursday": "Jeudi", "Friday": "Vendredi", "Saturday": "Samedi", "Sunday": "Dimanche"}
+MOIS_FR = {1: "Janvier", 2: "Février", 3: "Mars", 4: "Avril", 5: "Mai", 6: "Juin",
+           7: "Juillet", 8: "Août", 9: "Septembre", 10: "Octobre", 11: "Novembre", 12: "Décembre"}
 
-# --- SYSTÈME DE SAUVEGARDE LOCALE (MÉMOIRE APP) ---
+# --- SYSTÈME DE SAUVEGARDE LOCALE ---
 FICHIER_SAUVEGARDE = "equipe_ri.json"
 
 def charger_donnees():
     if os.path.exists(FICHIER_SAUVEGARDE):
         with open(FICHIER_SAUVEGARDE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+            # Mise à jour automatique des anciens fichiers pour intégrer le score WE
+            for m in data:
+                if "score_we" not in data[m]:
+                    data[m]["score_we"] = 0
+            return data
     return None
 
 def sauvegarder_donnees(data):
@@ -58,7 +69,10 @@ if 'merms_data' not in st.session_state:
         st.session_state.merms_data = {
             name: {
                 "lignes": [2] if name in ["Dhondt F.", "Geffroy C."] else [1, 2],
-                "score_cumule": 0, "pref_vendredi": False, "absences": []
+                "score_cumule": 0, 
+                "score_we": 0, # NOUVEAU COMPTEUR SPÉCIFIQUE WEEK-END
+                "pref_vendredi": False, 
+                "absences": []
             } for name in noms
         }
         sauvegarder_donnees(st.session_state.merms_data)
@@ -73,10 +87,7 @@ def modal_desiderata(name):
 
     cal_options = {
         "headerToolbar": {"left": "prev,next today", "center": "title", "right": "dayGridMonth"},
-        "selectable": True, 
-        "locale": "fr", 
-        "firstDay": 1, 
-        "height": "450px"
+        "selectable": True, "locale": "fr", "firstDay": 1, "height": "450px"
     }
     
     events = [{"title": "ABSENT", "start": d, "end": d, "color": "#DC2626"} for d in st.session_state[temp_key]]
@@ -96,7 +107,7 @@ def modal_desiderata(name):
             st.session_state[temp_key] = []
             st.rerun()
     with col_b:
-        v_pref = st.toggle("Coupler le vendredi", value=st.session_state.merms_data[name]["pref_vendredi"])
+        v_pref = st.toggle("Coupler le vendredi au WE", value=st.session_state.merms_data[name]["pref_vendredi"])
 
     st.write("---")
     st.markdown('<div class="btn-valider">', unsafe_allow_html=True)
@@ -108,46 +119,161 @@ def modal_desiderata(name):
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- MOTEUR ALGORITHMIQUE D'ÉQUITÉ ---
+# --- MOTEUR ALGORITHMIQUE AVANCÉ (DOUBLE ÉQUITÉ) ---
 def generer_planning(debut, fin):
     fr_holidays = holidays.France(years=[debut.year, fin.year])
     jours = pd.date_range(debut, fin)
-    planning = []
-    scores = {m: v['score_cumule'] for m, v in st.session_state.merms_data.items()}
     
-    idx = 0
-    while idx < len(jours):
-        d = jours[idx]
-        is_we_fete = d.weekday() >= 5 or d in fr_holidays
-        bloc = [d]
-        if d.weekday() == 5 and (idx + 1) < len(jours):
-            bloc.append(jours[idx+1]); idx += 1
+    planning = {d: {"L1": "⚠️ À POURVOIR", "L2": "⚠️ À POURVOIR"} for d in jours}
+    
+    # Copies des scores pour simulation
+    scores = {m: v['score_cumule'] for m, v in st.session_state.merms_data.items()}
+    scores_we = {m: v['score_we'] for m, v in st.session_state.merms_data.items()}
+    assigned_dates = {m: set() for m in st.session_state.merms_data.keys()}
+    
+    def est_dispo(m, dates_list):
+        return not any(dt.strftime("%Y-%m-%d") in st.session_state.merms_data[m]["absences"] for dt in dates_list)
+
+    # 1. PASSE DES WEEK-ENDS (Priorité stricte à l'équité des WE)
+    for d in jours:
+        if d.weekday() == 5: # Samedi
+            d_sun = d + timedelta(days=1)
+            d_fri = d - timedelta(days=1)
+            we_days = [d]
+            if d_sun <= fin: we_days.append(d_sun)
             
-        def est_dispo(m, dates_bloc):
-            return not any(dt.strftime("%Y-%m-%d") in st.session_state.merms_data[m]["absences"] for dt in dates_bloc)
+            for ligne in ["L1", "L2"]:
+                candidats = []
+                for m, v in st.session_state.merms_data.items():
+                    if (ligne == "L1" and 1 not in v["lignes"]) or (ligne == "L2" and 2 not in v["lignes"]): continue
+                    if ligne == "L2" and planning[d]["L1"] == m: continue
+                    if not est_dispo(m, we_days): continue
+                    
+                    if v["pref_vendredi"] and d_fri >= debut:
+                        if not est_dispo(m, [d_fri]) or planning[d_fri][ligne] != "⚠️ À POURVOIR": continue 
+                    candidats.append(m)
+                
+                # SÉLECTION : On prend celui qui a fait le MOINS de WE. En cas d'égalité, celui qui a le moins de points totaux.
+                choix = min(candidats, key=lambda x: (scores_we[x], scores[x])) if candidats else None
+                
+                if choix:
+                    scores_we[choix] += 1 # 1 WE de plus au compteur
+                    for wd in we_days:
+                        planning[wd][ligne] = choix
+                        assigned_dates[choix].add(wd)
+                        scores[choix] += 3 
+                    
+                    if st.session_state.merms_data[choix]["pref_vendredi"] and d_fri >= debut:
+                        planning[d_fri][ligne] = choix
+                        assigned_dates[choix].add(d_fri)
+                        scores[choix] += 1
+                        
+    # 2. PASSE DE LA SEMAINE (Règles métiers classiques)
+    for d in jours:
+        for ligne in ["L1", "L2"]:
+            if planning[d][ligne] != "⚠️ À POURVOIR": continue
+            
+            candidats = []
+            for m, v in st.session_state.merms_data.items():
+                if (ligne == "L1" and 1 not in v["lignes"]) or (ligne == "L2" and 2 not in v["lignes"]): continue
+                if ligne == "L2" and planning[d]["L1"] == m: continue
+                if not est_dispo(m, [d]): continue
+                
+                if m != "Talbaut V.": # Exception
+                    if (d - timedelta(days=1)) in assigned_dates[m] or (d + timedelta(days=1)) in assigned_dates[m]:
+                        continue # Pas de consécutif
+                    week_num = d.isocalendar()[1]
+                    jours_semaine = [ad for ad in assigned_dates[m] if ad.isocalendar()[1] == week_num]
+                    if any(ad.weekday() >= 5 for ad in jours_semaine):
+                        continue # Déjà un WE, pas d'astreinte
+                    elif len(jours_semaine) >= 2:
+                        continue # Max 2 en semaine
+                            
+                candidats.append(m)
+                
+            choix = min(candidats, key=lambda x: scores[x]) if candidats else "⚠️ À POURVOIR"
+            planning[d][ligne] = choix
+            if choix != "⚠️ À POURVOIR":
+                assigned_dates[choix].add(d)
+                scores[choix] += 3 if (d.weekday() >= 5 or d in fr_holidays) else 1
 
-        cand_l1 = [m for m, v in st.session_state.merms_data.items() if 1 in v["lignes"] and est_dispo(m, bloc)]
-        l1 = min(cand_l1, key=lambda x: scores[x]) if cand_l1 else "⚠️ À POURVOIR"
-        
-        cand_l2 = [m for m, v in st.session_state.merms_data.items() if m != l1 and 2 in v["lignes"] and est_dispo(m, bloc)]
-        l2 = min(cand_l2, key=lambda x: scores[x]) if cand_l2 else "⚠️ À POURVOIR"
+    # Formatage de la donnée
+    resultat = []
+    for d in jours:
+        resultat.append({
+            "Date": d.strftime("%d/%m/%Y"),
+            "DateObj": d,
+            "Jour": JOURS_FR[d.strftime("%A")],
+            "Ligne 1": planning[d]["L1"],
+            "Ligne 2": planning[d]["L2"],
+            "Type": "FÉRIÉ/WE" if (d.weekday() >= 5 or d in fr_holidays) else "SEMAINE"
+        })
+    return pd.DataFrame(resultat), scores, scores_we
 
-        poids = 3 if is_we_fete else 1
-        for jb in bloc:
-            planning.append({"Date": jb.strftime("%d/%m/%Y"), "Jour": JOURS_FR[jb.strftime("%A")], 
-                             "Ligne 1": l1, "Ligne 2": l2, "Type": "FÉRIÉ/WE" if (jb.weekday() >= 5 or jb in fr_holidays) else "SEMAINE"})
-            if l1 != "⚠️ À POURVOIR": scores[l1] += poids
-            if l2 != "⚠️ À POURVOIR": scores[l2] += poids
-        idx += 1
-    return pd.DataFrame(planning), scores
-
-# --- FONCTION D'EXPORT EXCEL ---
-def generer_excel(df_planning, dict_scores):
+# --- EXPORT EXCEL : SÉPARÉ AVEC COLONNE MODIFICATION ---
+def generer_excel_liste(df_planning, dict_scores, dict_scores_we):
     output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_planning.to_excel(writer, index=False, sheet_name="Planning Trimestriel")
-        df_scores = pd.DataFrame.from_dict(dict_scores, orient='index', columns=['Points Cumulés'])
-        df_scores.to_excel(writer, sheet_name="Scores Équité")
+    wb = Workbook()
+    wb.remove(wb.active)
+
+    fill_header = PatternFill(start_color="1E40AF", end_color="1E40AF", fill_type="solid")
+    font_header = Font(color="FFFFFF", bold=True)
+    border_thin = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+    df_planning['Annee'] = df_planning['DateObj'].dt.year
+    df_planning['MoisNum'] = df_planning['DateObj'].dt.month
+
+    for (annee, mois), group in df_planning.groupby(['Annee', 'MoisNum']):
+        nom_mois = MOIS_FR[mois]
+        
+        # --- ONGLET LIGNE 1 ---
+        ws_l1 = wb.create_sheet(title=f"L1 {nom_mois} {annee}")
+        en_tetes = ["Date", "Jour", "Astreinte Prévue (L1)", "Modification / Remplaçant", "Motif / Commentaire"]
+        ws_l1.append(en_tetes)
+        
+        # --- ONGLET LIGNE 2 ---
+        ws_l2 = wb.create_sheet(title=f"L2 {nom_mois} {annee}")
+        en_tetes_l2 = ["Date", "Jour", "Astreinte Prévue (L2)", "Modification / Remplaçant", "Motif / Commentaire"]
+        ws_l2.append(en_tetes_l2)
+        
+        # Remplissage
+        for _, row in group.iterrows():
+            d_str, j_str = row['Date'], row['Jour']
+            ws_l1.append([d_str, j_str, row['Ligne 1'], "", ""])
+            ws_l2.append([d_str, j_str, row['Ligne 2'], "", ""])
+
+        # Design des colonnes pour les deux feuilles
+        for ws in [ws_l1, ws_l2]:
+            for col_num in range(1, 6):
+                cell = ws.cell(row=1, column=col_num)
+                cell.fill = fill_header
+                cell.font = font_header
+                cell.border = border_thin
+            ws.column_dimensions['A'].width = 12
+            ws.column_dimensions['B'].width = 12
+            ws.column_dimensions['C'].width = 25
+            ws.column_dimensions['D'].width = 30 # Grande colonne pour écrire au stylo
+            ws.column_dimensions['E'].width = 30
+            
+            # Application des bordures sur toutes les cellules
+            for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=5):
+                for cell in row:
+                    cell.border = border_thin
+
+    # Onglet Bilan d'équité
+    ws_scores = wb.create_sheet(title="Bilan Équité")
+    ws_scores.append(["Manipulateur", "Nombre de Week-ends (Année)", "Points Globaux (Charge)"])
+    for idx, m in enumerate(dict_scores.keys(), 2):
+        ws_scores.cell(row=idx, column=1, value=m).border = border_thin
+        ws_scores.cell(row=idx, column=2, value=dict_scores_we[m]).border = border_thin
+        ws_scores.cell(row=idx, column=3, value=dict_scores[m]).border = border_thin
+        
+    for col in ['A', 'B', 'C']:
+        ws_scores.column_dimensions[col].width = 25
+        ws_scores.cell(row=1, column=ord(col)-64).fill = fill_header
+        ws_scores.cell(row=1, column=ord(col)-64).font = font_header
+
+    wb.save(output)
     return output.getvalue()
 
 # --- INTERFACE PRINCIPALE ---
@@ -163,7 +289,7 @@ with st.sidebar:
             if new_name and new_name not in st.session_state.merms_data:
                 lignes = [1] if new_l1 else []
                 if new_l2: lignes.append(2)
-                st.session_state.merms_data[new_name] = {"lignes": lignes, "score_cumule": 0, "pref_vendredi": False, "absences": []}
+                st.session_state.merms_data[new_name] = {"lignes": lignes, "score_cumule": 0, "score_we": 0, "pref_vendredi": False, "absences": []}
                 sauvegarder_donnees(st.session_state.merms_data)
                 st.rerun()
 
@@ -184,7 +310,6 @@ col_cfg, col_res = st.columns([1, 2.2])
 
 with col_cfg:
     st.header("1. Période (Trimestre)")
-    # Date par défaut modifiée pour couvrir ~90 jours (3 mois)
     d_start = st.date_input("Début", datetime.now())
     d_end = st.date_input("Fin", datetime.now() + timedelta(days=90))
     
@@ -199,19 +324,20 @@ with col_res:
     st.header("3. Génération & Export")
     st.markdown('<div class="btn-generer">', unsafe_allow_html=True)
     if st.button("🚀 CALCULER LA RÉPARTITION ÉQUITABLE", use_container_width=True):
-        df_resultat, scores_finaux = generer_planning(d_start, d_end)
+        df_resultat, scores_finaux, scores_we_finaux = generer_planning(d_start, d_end)
         st.session_state.planning_final = df_resultat
         st.session_state.scores_finaux = scores_finaux
+        st.session_state.scores_we_finaux = scores_we_finaux
     st.markdown('</div>', unsafe_allow_html=True)
 
     if 'planning_final' in st.session_state:
         st.write("---")
-        # Format du nom de fichier : ex Planning_RI_01-03_2026.xlsx
-        excel_data = generer_excel(st.session_state.planning_final, st.session_state.scores_finaux)
+        # EXPORT EXCEL LISTE MODIFIABLE
+        excel_data = generer_excel_liste(st.session_state.planning_final, st.session_state.scores_finaux, st.session_state.scores_we_finaux)
         nom_fichier = f"Planning_RI_{d_start.strftime('%m')}-{d_end.strftime('%m_%Y')}.xlsx"
         
         st.download_button(
-            label="📥 TÉLÉCHARGEMENT EXCEL (TRIMESTRE)",
+            label="📥 TÉLÉCHARGEMENT EXCEL (AVEC COLONNE MODIFICATION)",
             data=excel_data,
             file_name=nom_fichier,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -224,19 +350,22 @@ with col_res:
         
         with onglet_l1:
             st.table(st.session_state.planning_final[["Date", "Jour", "Ligne 1", "Type"]])
-            
         with onglet_l2:
             st.table(st.session_state.planning_final[["Date", "Jour", "Ligne 2", "Type"]])
             
         with onglet_stats:
-            st.subheader("Bilan des points attribués sur la période")
-            st.info("Le système équilibre automatiquement le planning. (Semaine = 1 pt | WE & Férié = 3 pts)")
-            df_scores = pd.DataFrame.from_dict(st.session_state.scores_finaux, orient='index', columns=['Points Cumulés'])
-            st.bar_chart(df_scores)
+            st.subheader("Bilan d'Équité (Double validation)")
+            st.info("La priorité est donnée à l'équité des Week-ends, puis au lissage de la charge de semaine.")
+            df_bilan = pd.DataFrame({
+                "Nombre de Week-ends": st.session_state.scores_we_finaux,
+                "Points Globaux (Charge)": st.session_state.scores_finaux
+            })
+            st.table(df_bilan)
             
             st.write("---")
             if st.button("💾 VALIDER CE TRIMESTRE ET SAUVEGARDER LES SCORES"):
                 for m in st.session_state.scores_finaux:
                     st.session_state.merms_data[m]['score_cumule'] = st.session_state.scores_finaux[m]
+                    st.session_state.merms_data[m]['score_we'] = st.session_state.scores_we_finaux[m]
                 sauvegarder_donnees(st.session_state.merms_data)
-                st.success("✅ Base de données mise à jour ! Le calcul du prochain trimestre prendra en compte cet historique.")
+                st.success("✅ Base de données mise à jour ! L'algorithme se souviendra du nombre de WE réalisés par chacun.")
