@@ -1,12 +1,11 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
-import holidays
-from streamlit_calendar import calendar
 import json
 import os
 import io
 
+from streamlit_calendar import calendar
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
 from openpyxl.utils import get_column_letter
@@ -83,11 +82,10 @@ st.markdown("""
     .btn-generer button { background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%) !important; padding: 1rem !important; border: none !important;}
     .btn-supprimer button { background-color: #DC2626 !important; padding: 2px 10px !important; border: none !important;}
     
-    /* Boutons de la modale */
     .btn-indispo button { background-color: #DC2626 !important; border: none !important;}
-    .btn-obli1 button { background-color: #16A34A !important; border: none !important;} /* Vert */
-    .btn-obli2 button { background-color: #F59E0B !important; border: none !important;} /* Orange */
-    .btn-clear button { background-color: #64748B !important; border: none !important;} /* Gris ardoise */
+    .btn-obli1 button { background-color: #16A34A !important; border: none !important;} 
+    .btn-obli2 button { background-color: #F59E0B !important; border: none !important;} 
+    .btn-clear button { background-color: #64748B !important; border: none !important;} 
 
     .stTabs [data-baseweb="tab-list"] { background-color: var(--bg-sec) !important; padding: 6px; border-radius: 10px; }
     .stTabs [aria-selected="true"] { background-color: var(--bg-card) !important; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
@@ -108,8 +106,8 @@ def charger_donnees():
                 m.setdefault("nb_l1", 0)
                 m.setdefault("nb_l2", 0)
                 m.setdefault("lignes", [1, 2])
-                m.setdefault("obl_l1", []) # NOUVEAU: Liste bonus L1
-                m.setdefault("obl_l2", []) # NOUVEAU: Liste bonus L2
+                m.setdefault("obl_l1", []) 
+                m.setdefault("obl_l2", []) 
             return data
     return None
 
@@ -184,7 +182,6 @@ def modal_desiderata(name):
         .fc-toolbar-title, .fc-daygrid-day-number { color: var(--fc-text) !important; }
     """
     
-    # Affichage des 4 types d'événements
     events = [{"title": "INDISPO", "start": d, "end": d, "color": "#DC2626"} for d in st.session_state[t_abs] if d not in st.session_state[t_sel]] + \
              [{"title": "OBLI L1", "start": d, "end": d, "color": "#16A34A"} for d in st.session_state[t_o1] if d not in st.session_state[t_sel]] + \
              [{"title": "OBLI L2", "start": d, "end": d, "color": "#F59E0B"} for d in st.session_state[t_o2] if d not in st.session_state[t_sel]] + \
@@ -206,7 +203,6 @@ def modal_desiderata(name):
 
     if action_detectee: st.rerun()
 
-    # DISPOSITION 2x2 POUR LES BOUTONS D'ACTION
     c1, c2 = st.columns(2)
     with c1:
         st.markdown('<div class="btn-indispo">', unsafe_allow_html=True)
@@ -260,23 +256,23 @@ def modal_desiderata(name):
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
-# 5. MOTEUR ALGORITHMIQUE (ÉQUITÉ & RÈGLES)
+# 5. MOTEUR ALGORITHMIQUE (ÉQUITÉ ET BYPASS ABSOLU)
 # ==========================================
 def generer_planning(debut, fin):
     debut, fin = pd.Timestamp(debut), pd.Timestamp(fin)
-    fr_holidays = holidays.France(years=range(debut.year, fin.year + 1))
     jours = pd.date_range(debut, fin)
     
     planning = {d: {"L1": "⚠️ À POURVOIR", "L2": "⚠️ À POURVOIR"} for d in jours}
     assigned_dates = {m: set() for m in st.session_state.merms_data}
     
-    sc, sc_we = {m: v['score_cumule'] for m, v in st.session_state.merms_data.items()}, {m: v['score_we'] for m, v in st.session_state.merms_data.items()}
+    sc = {m: v['score_cumule'] for m, v in st.session_state.merms_data.items()}
+    sc_we = {m: v['score_we'] for m, v in st.session_state.merms_data.items()}
     n_l1, n_l2 = {m: v['nb_l1'] for m, v in st.session_state.merms_data.items()}, {m: v['nb_l2'] for m, v in st.session_state.merms_data.items()}
     
     def est_dispo(m, dt_list): return not any(d.strftime("%Y-%m-%d") in st.session_state.merms_data[m]["absences"] for d in dt_list)
     def a_prio_l1(m, dt_list): return any(d.strftime("%Y-%m-%d") in st.session_state.merms_data[m].get("obl_l1", []) for d in dt_list)
     def a_prio_l2(m, dt_list): return any(d.strftime("%Y-%m-%d") in st.session_state.merms_data[m].get("obl_l2", []) for d in dt_list)
-    def is_we_ferie(d): return d.weekday() >= 5 or d.date() in fr_holidays
+    def is_we(d): return d.weekday() >= 5
 
     # --- PASSE 1 : WEEK-ENDS ---
     for d in jours:
@@ -285,32 +281,35 @@ def generer_planning(debut, fin):
             d_fri = d - timedelta(days=1)
             
             for ligne in ["L1", "L2"]:
-                candidats = []
+                candidats_normaux, candidats_prio = [], []
+                
                 for m, v in st.session_state.merms_data.items():
                     if int(ligne[1]) not in v["lignes"] or (ligne == "L2" and planning[d]["L1"] == m): continue
                     if not est_dispo(m, we_days): continue
-                    if v["pref_vendredi"] and d_fri >= debut and (not est_dispo(m, [d_fri]) or planning[d_fri][ligne] != "⚠️ À POURVOIR"): continue 
-                    candidats.append(m)
+                    
+                    jours_concernes = we_days + ([d_fri] if d_fri >= debut else [])
+                    
+                    # --- BYPASS ABSOLU : Si volontaire, on l'ajoute en priorité ---
+                    if (ligne == "L1" and a_prio_l1(m, jours_concernes)) or (ligne == "L2" and a_prio_l2(m, jours_concernes)):
+                        candidats_prio.append(m)
+                    else:
+                        # Si non-volontaire, il subit la règle de son vendredi
+                        if v["pref_vendredi"] and d_fri >= debut and (not est_dispo(m, [d_fri]) or planning[d_fri][ligne] != "⚠️ À POURVOIR"): continue 
+                        candidats_normaux.append(m)
+                
+                candidats = candidats_prio if candidats_prio else candidats_normaux
                 
                 if candidats:
-                    # Règle de l'Astreinte Obligatoire ciblée
-                    jours_concernes = we_days + ([d_fri] if d_fri >= debut else [])
-                    if ligne == "L1":
-                        candidats_prio = [c for c in candidats if a_prio_l1(c, jours_concernes)]
-                    else:
-                        candidats_prio = [c for c in candidats if a_prio_l2(c, jours_concernes)]
-                        
-                    if candidats_prio: candidats = candidats_prio # S'il y a des volontaires, on ne garde qu'eux
-                    
                     choix = min(candidats, key=lambda x: (sc_we[x], sc[x], n_l1[x] + n_l2[x], n_l1[x] if ligne == "L1" else n_l2[x]))
                     sc_we[choix] += 1 
                     
-                    jours_assign = we_days + ([d_fri] if (st.session_state.merms_data[choix]["pref_vendredi"] and d_fri >= debut) else [])
+                    ajoute_vendredi = st.session_state.merms_data[choix]["pref_vendredi"] and d_fri >= debut and est_dispo(choix, [d_fri]) and planning[d_fri][ligne] == "⚠️ À POURVOIR"
+                    jours_assign = we_days + ([d_fri] if ajoute_vendredi else [])
                         
                     for ja in jours_assign:
                         planning[ja][ligne] = choix
                         assigned_dates[choix].add(ja)
-                        sc[choix] += 3 if is_we_ferie(ja) else 1
+                        sc[choix] += 3 if is_we(ja) else 1
                         if ligne == "L1": n_l1[choix] += 1
                         else: n_l2[choix] += 1
                         
@@ -319,9 +318,17 @@ def generer_planning(debut, fin):
         for ligne in ["L1", "L2"]:
             if planning[d][ligne] != "⚠️ À POURVOIR": continue
             
-            candidats = []
+            candidats_normaux, candidats_prio = [], []
+            
             for m, v in st.session_state.merms_data.items():
                 if int(ligne[1]) not in v["lignes"] or (ligne == "L2" and planning[d]["L1"] == m) or not est_dispo(m, [d]): continue
+                
+                # --- BYPASS ABSOLU : Si volontaire, on saute les règles de sécurité ---
+                if (ligne == "L1" and a_prio_l1(m, [d])) or (ligne == "L2" and a_prio_l2(m, [d])):
+                    candidats_prio.append(m)
+                    continue # Bypass !
+                
+                # --- RÈGLES DE SÉCURITÉ ET QUOTAS (Pour les non-volontaires) ---
                 if (d - timedelta(days=1)) in assigned_dates[m] or (d + timedelta(days=1)) in assigned_dates[m]: continue
                 
                 jours_sem = [ad for ad in assigned_dates[m] if ad.isocalendar()[1] == d.isocalendar()[1]]
@@ -329,28 +336,23 @@ def generer_planning(debut, fin):
                 jours_hors_we = [ad for ad in jours_sem if ad.weekday() < 5]
                 
                 if (a_un_we and len(jours_hors_we) >= 1) or (not a_un_we and len(jours_hors_we) >= 2): continue 
-                candidats.append(m)
                 
+                candidats_normaux.append(m)
+                
+            candidats = candidats_prio if candidats_prio else candidats_normaux
+            
             if candidats:
-                # Règle de l'Astreinte Obligatoire ciblée
-                if ligne == "L1":
-                    candidats_prio = [c for c in candidats if a_prio_l1(c, [d])]
-                else:
-                    candidats_prio = [c for c in candidats if a_prio_l2(c, [d])]
-                    
-                if candidats_prio: candidats = candidats_prio 
-                
                 choix = min(candidats, key=lambda x: (sc[x], n_l1[x] + n_l2[x], n_l1[x] if ligne == "L1" else n_l2[x]))
                 planning[d][ligne] = choix
                 assigned_dates[choix].add(d)
-                sc[choix] += 3 if is_we_ferie(d) else 1
+                sc[choix] += 3 if is_we(d) else 1
                 if ligne == "L1": n_l1[choix] += 1
                 else: n_l2[choix] += 1
 
     res_df = pd.DataFrame([{
         "Date": d.strftime("%d/%m/%Y"), "DateObj": d, "Jour": JOURS_FR[d.strftime("%A")],
         "Ligne 1": planning[d]["L1"], "Ligne 2": planning[d]["L2"],
-        "Type": "FÉRIÉ/WE" if is_we_ferie(d) else "SEMAINE"
+        "Type": "WEEK-END" if is_we(d) else "SEMAINE"
     } for d in jours])
                  
     return res_df, sc, sc_we, n_l1, n_l2
@@ -427,7 +429,7 @@ def generer_excel_liste(df_planning, d_sc, d_sc_we, d_nbl1, d_nbl2):
                     c.border = b_thin
                     c.font = font_data
                     c.alignment = align_center if c.column != col_offset+3 else align_left
-                    if row['Type'] == "FÉRIÉ/WE": c.fill = f_we
+                    if row['Type'] == "WEEK-END": c.fill = f_we
                     
             row_offset += 1
             
@@ -518,7 +520,7 @@ with c_res:
         with t1: st.table(st.session_state.planning_final[["Jour", "Date", "Ligne 1", "Type"]])
         with t2: st.table(st.session_state.planning_final[["Jour", "Date", "Ligne 2", "Type"]])
         with t3:
-            st.info("L'algorithme équilibre dans l'ordre : 1. Volontaires (Bonus) -> 2. Nbr Week-ends -> 3. Pénibilité (Points) -> 4. Total Astreintes -> 5. Ratio L1/L2.")
+            st.info("L'algorithme équilibre dans l'ordre : 1. Volontaires (Bypass absolu des règles) -> 2. Nbr Week-ends -> 3. Pénibilité (Points) -> 4. Total Astreintes.")
             st.table(pd.DataFrame({
                 "Total Points (Charge)": st.session_state.scores_finaux,
                 "Total Astreintes": {m: st.session_state.nbl1_finaux[m] + st.session_state.nbl2_finaux[m] for m in st.session_state.merms_data},
