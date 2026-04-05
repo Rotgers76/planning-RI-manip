@@ -13,22 +13,25 @@ from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Planning RI Pro", layout="wide", initial_sidebar_state="expanded")
 
-# --- THÈME MODERNE & ERGONOMIQUE (BLEU CLAIR & ANTI DARK-MODE) ---
+# --- THÈME MODERNE & ERGONOMIQUE ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
     
-    /* 1. FORCER LE TEXTE FONCÉ PARTOUT POUR CONTRER LE DARK MODE */
+    /* 1. FORCER LE TEXTE EN NOIR/GRIS FONCÉ PARTOUT */
     html, body, [class*="css"], .stApp, [data-testid="stSidebar"] { 
         font-family: 'Inter', sans-serif;
     }
-    p, span, label, div, h1, h2, h3, th, td {
-        color: #0F172A !important; /* Bleu marine très sombre pour le texte */
+    p, span, label, div, th, td {
+        color: #333333 !important; /* Gris très foncé pour une lecture douce */
+    }
+    h1, h2, h3 { 
+        color: #000000 !important; /* Noir pur pour les titres */
     }
     
-    /* 2. REMPLACER LE GRIS PAR DU BLEU CLAIR */
-    .stApp { background-color: #F0F9FF !important; } /* Fond principal Bleu Très Clair */
-    [data-testid="stSidebar"] { background-color: #E0F2FE !important; } /* Colonne de gauche Bleu Clair */
+    /* 2. FONDS EN BLEU CLAIR */
+    .stApp { background-color: #F0F9FF !important; } 
+    [data-testid="stSidebar"] { background-color: #E0F2FE !important; } 
     
     h1 { border-bottom: 4px solid #2563EB; padding-bottom: 10px; margin-bottom: 1rem; }
     h2, h3 { font-weight: 700; margin-top: 1.5rem; }
@@ -36,24 +39,23 @@ st.markdown("""
     /* Cartes et Boutons normaux */
     .stButton>button { width: 100%; border-radius: 8px; border: 1px solid #BAE6FD; background-color: #FFFFFF !important; padding: 0.6rem; transition: all 0.2s; text-align: left; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
     .stButton>button:hover { border-color: #2563EB; background-color: #DBEAFE !important; transform: translateY(-1px); box-shadow: 0 4px 6px rgba(37, 99, 235, 0.1); }
-    /* Force la couleur du texte à l'intérieur des boutons standards */
-    .stButton>button p { color: #0F172A !important; }
-    .stButton>button:hover p { color: #2563EB !important; }
+    .stButton>button p { color: #333333 !important; }
+    .stButton>button:hover p { color: #000000 !important; }
     
-    /* Boutons d'action (On force le texte en blanc ici) */
+    /* Boutons d'action (Texte en blanc) */
     .btn-valider button, .btn-valider button span, .btn-valider button p { background-color: #059669 !important; color: white !important; font-weight: 800; }
     .btn-generer button, .btn-generer button span, .btn-generer button p { background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%) !important; color: white !important; font-weight: 800; padding: 1rem !important; }
     .btn-supprimer button, .btn-supprimer button span, .btn-supprimer button p { background-color: #DC2626 !important; color: white !important; padding: 2px 10px !important; }
     .btn-indispo button, .btn-indispo button span, .btn-indispo button p { background-color: #DC2626 !important; color: white !important; font-weight: bold; }
     .btn-dispo button, .btn-dispo button span, .btn-dispo button p { background-color: #16A34A !important; color: white !important; font-weight: bold; }
-    .btn-clear button, .btn-clear button span, .btn-clear button p { background-color: #0284C7 !important; color: white !important; font-weight: bold; } /* Bleu vif au lieu de gris */
+    .btn-clear button, .btn-clear button span, .btn-clear button p { background-color: #0284C7 !important; color: white !important; font-weight: bold; }
 
-    /* Onglets et Tableaux (Bleu clair) */
+    /* Onglets et Tableaux */
     .stTabs [data-baseweb="tab-list"] { gap: 10px; background-color: #BAE6FD !important; padding: 6px; border-radius: 10px; }
     .stTabs [data-baseweb="tab"] { border-radius: 6px; background-color: transparent; font-weight: 600; }
-    .stTabs [data-baseweb="tab"] p { color: #0369A1 !important; }
+    .stTabs [data-baseweb="tab"] p { color: #555555 !important; }
     .stTabs [aria-selected="true"] { background-color: white !important; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .stTabs [aria-selected="true"] p { color: #2563EB !important; }
+    .stTabs [aria-selected="true"] p { color: #000000 !important; font-weight: bold; }
     
     [data-testid="stTable"] { background-color: white !important; border-radius: 8px; overflow: hidden; border: 1px solid #BAE6FD; }
     </style>
@@ -201,7 +203,7 @@ def modal_desiderata(name):
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- MOTEUR ALGORITHMIQUE ---
+# --- MOTEUR ALGORITHMIQUE AVEC MULTI-ÉQUITÉ ---
 def generer_planning(debut, fin):
     debut = pd.Timestamp(debut)
     fin = pd.Timestamp(fin)
@@ -210,6 +212,7 @@ def generer_planning(debut, fin):
     
     planning = {d: {"L1": "⚠️ À POURVOIR", "L2": "⚠️ À POURVOIR"} for d in jours}
     
+    # Récupération de tous les compteurs
     scores = {m: v['score_cumule'] for m, v in st.session_state.merms_data.items()}
     scores_we = {m: v['score_we'] for m, v in st.session_state.merms_data.items()}
     nb_l1 = {m: v.get('nb_l1', 0) for m, v in st.session_state.merms_data.items()}
@@ -239,6 +242,7 @@ def generer_planning(debut, fin):
                         if not est_dispo(m, [d_fri]) or planning[d_fri][ligne] != "⚠️ À POURVOIR": continue 
                     candidats.append(m)
                 
+                # Tri Complexe : 1. Nbr WE -> 2. Points totaux -> 3. Nbr d'astreintes totales -> 4. Equilibre L1/L2
                 if ligne == "L1":
                     choix = min(candidats, key=lambda x: (scores_we[x], scores[x], total_ast(x), nb_l1[x])) if candidats else None
                 else:
@@ -271,6 +275,7 @@ def generer_planning(debut, fin):
                 if ligne == "L2" and planning[d]["L1"] == m: continue
                 if not est_dispo(m, [d]): continue
                 
+                # Règles de sécurité et quotas
                 if (d - timedelta(days=1)) in assigned_dates[m] or (d + timedelta(days=1)) in assigned_dates[m]: continue
                 week_num = d.isocalendar()[1]
                 jours_semaine_ad = [ad for ad in assigned_dates[m] if ad.isocalendar()[1] == week_num]
@@ -282,6 +287,7 @@ def generer_planning(debut, fin):
                             
                 candidats.append(m)
                 
+            # Tri Complexe : 1. Points totaux -> 2. Nbr d'astreintes totales -> 3. Equilibre L1/L2
             if ligne == "L1":
                 choix = min(candidats, key=lambda x: (scores[x], total_ast(x), nb_l1[x])) if candidats else "⚠️ À POURVOIR"
             else:
