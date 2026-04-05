@@ -9,6 +9,7 @@ import io
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
+from openpyxl.utils import get_column_letter
 
 # ==========================================
 # 1. CONFIGURATION ET CONSTANTES
@@ -40,10 +41,34 @@ st.markdown("""
     [data-testid="stSidebar"] { background-color: #E0F2FE !important; } 
     [data-testid="stModal"] > div:first-child { background-color: rgba(3, 105, 161, 0.5) !important; }
     
-    /* Composants UI */
-    div[data-baseweb="input"] > div, div[data-baseweb="popover"] > div, [data-testid="stExpander"] { 
+    /* Composants UI (Inputs standards) */
+    div[data-baseweb="input"] > div, [data-testid="stExpander"] { 
         background-color: #FFFFFF !important; border: 1px solid #BAE6FD !important; border-radius: 8px; 
     }
+    
+    /* === NOUVEAU : FIX DU CALENDRIER DE PÉRIODE (ST.DATE_INPUT) === */
+    div[data-baseweb="popover"] > div, 
+    div[data-baseweb="calendar"], 
+    div[data-baseweb="calendar"] > div {
+        background-color: #FFFFFF !important; 
+    }
+    /* Jours normaux dans le calendrier */
+    div[data-baseweb="calendar"] [role="button"] {
+        background-color: transparent !important;
+        color: #333333 !important;
+    }
+    /* Survol d'un jour */
+    div[data-baseweb="calendar"] [role="button"]:hover {
+        background-color: #DBEAFE !important;
+    }
+    /* Jour sélectionné */
+    div[data-baseweb="calendar"] [aria-selected="true"],
+    div[data-baseweb="calendar"] [aria-selected="true"] * {
+        background-color: #2563EB !important;
+        color: #FFFFFF !important;
+    }
+    /* ============================================================= */
+
     div[role="dialog"] { border: 2px solid #BAE6FD !important; border-radius: 12px; }
     h1 { border-bottom: 4px solid #2563EB; padding-bottom: 10px; margin-bottom: 1rem; }
     
@@ -75,7 +100,6 @@ def charger_donnees():
     if os.path.exists(FICHIER_SAUVEGARDE):
         with open(FICHIER_SAUVEGARDE, "r", encoding="utf-8") as f:
             data = json.load(f)
-            # Sécurité : Injection des clés manquantes si mise à jour du code
             for m in data.values():
                 m.setdefault("score_we", 0)
                 m.setdefault("nb_l1", 0)
@@ -128,7 +152,6 @@ def modal_desiderata(name):
         "selectable": True, "locale": "fr", "firstDay": 1, "height": "450px", "unselectAuto": False 
     }
     
-    # CSS injecté pour intégrer le calendrier au thème
     css_cal = """
         .fc { background-color: #F0F9FF !important; color: #333333 !important; font-family: 'Inter', sans-serif; }
         .fc-theme-standard th, .fc-theme-standard td { border-color: #BAE6FD !important; }
@@ -141,13 +164,10 @@ def modal_desiderata(name):
 
     res = calendar(events=events, options=cal_options, custom_css=css_cal, key=f"cal_{name}")
 
-    # Capture de sélection (Simplifiée avec Pandas)
     if "select" in res and str(res["select"]) != st.session_state.get(l_sel):
         st.session_state[l_sel] = str(res["select"])
         s_date = res["select"].get("startStr", res["select"]["start"])[:10]
         e_date = res["select"].get("endStr", res["select"]["end"])[:10]
-        
-        # Le calendrier inclut le jour de fin (exclusif), on retire 1 jour
         dates_range = pd.date_range(s_date, pd.to_datetime(e_date) - pd.Timedelta(days=1)).strftime("%Y-%m-%d").tolist()
         st.session_state[t_sel].update(dates_range)
         st.rerun()
@@ -196,7 +216,6 @@ def generer_planning(debut, fin):
     planning = {d: {"L1": "⚠️ À POURVOIR", "L2": "⚠️ À POURVOIR"} for d in jours}
     assigned_dates = {m: set() for m in st.session_state.merms_data}
     
-    # Copies de travail des compteurs
     sc, sc_we = {m: v['score_cumule'] for m, v in st.session_state.merms_data.items()}, {m: v['score_we'] for m, v in st.session_state.merms_data.items()}
     n_l1, n_l2 = {m: v['nb_l1'] for m, v in st.session_state.merms_data.items()}, {m: v['nb_l2'] for m, v in st.session_state.merms_data.items()}
     
@@ -218,7 +237,6 @@ def generer_planning(debut, fin):
                     candidats.append(m)
                 
                 if candidats:
-                    # Tri : 1. Nb WE | 2. Points | 3. Total Astreintes | 4. Ligne spécifique
                     choix = min(candidats, key=lambda x: (sc_we[x], sc[x], n_l1[x] + n_l2[x], n_l1[x] if ligne == "L1" else n_l2[x]))
                     sc_we[choix] += 1 
                     
@@ -240,10 +258,8 @@ def generer_planning(debut, fin):
             for m, v in st.session_state.merms_data.items():
                 if int(ligne[1]) not in v["lignes"] or (ligne == "L2" and planning[d]["L1"] == m) or not est_dispo(m, [d]): continue
                 
-                # Règle repos consécutif
                 if (d - timedelta(days=1)) in assigned_dates[m] or (d + timedelta(days=1)) in assigned_dates[m]: continue
                 
-                # Quotas hebdomadaires
                 jours_sem = [ad for ad in assigned_dates[m] if ad.isocalendar()[1] == d.isocalendar()[1]]
                 a_un_we = any(ad.weekday() >= 5 for ad in jours_sem)
                 jours_hors_we = [ad for ad in jours_sem if ad.weekday() < 5]
@@ -259,7 +275,6 @@ def generer_planning(debut, fin):
                 if ligne == "L1": n_l1[choix] += 1
                 else: n_l2[choix] += 1
 
-    # Formatage final Pandas
     res_df = pd.DataFrame([{
         "Date": d.strftime("%d/%m/%Y"), "DateObj": d, "Jour": JOURS_FR[d.strftime("%A")],
         "Ligne 1": planning[d]["L1"], "Ligne 2": planning[d]["L2"],
@@ -269,49 +284,90 @@ def generer_planning(debut, fin):
     return res_df, sc, sc_we, n_l1, n_l2
 
 # ==========================================
-# 6. GÉNÉRATION EXCEL
+# 6. GÉNÉRATION EXCEL (A3 PAYSAGE - CÔTE À CÔTE)
 # ==========================================
 def generer_excel_liste(df_planning, d_sc, d_sc_we, d_nbl1, d_nbl2):
     output = io.BytesIO()
     wb = Workbook()
     wb.remove(wb.active)
 
-    f_head, font_head = PatternFill(start_color="1E40AF", end_color="1E40AF", fill_type="solid"), Font(color="FFFFFF", bold=True)
+    f_title = PatternFill(start_color="0284C7", end_color="0284C7", fill_type="solid")
+    font_title = Font(color="FFFFFF", bold=True, size=13)
+    f_head = PatternFill(start_color="1E40AF", end_color="1E40AF", fill_type="solid")
+    font_head = Font(color="FFFFFF", bold=True)
     b_thin = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
     f_we = PatternFill(start_color="DBEAFE", end_color="DBEAFE", fill_type="solid")
+    f_sep = PatternFill(start_color="E2E8F0", end_color="E2E8F0", fill_type="solid")
+    align_center = Alignment(horizontal='center', vertical='center')
 
-    for (annee, mois), group in df_planning.groupby([df_planning['DateObj'].dt.year, df_planning['DateObj'].dt.month]):
-        for l_num, ligne in enumerate(["Ligne 1", "Ligne 2"], 1):
-            ws = wb.create_sheet(title=f"L{l_num} {MOIS_FR[mois]} {annee}")
-            ws.append(["Jour", "Date", "Astreinte Prévue", "Modification / Remplaçant"])
+    df_planning['Annee'] = df_planning['DateObj'].dt.year
+    df_planning['MoisNum'] = df_planning['DateObj'].dt.month
+
+    ws_l1 = wb.create_sheet(title="Ligne 1")
+    ws_l2 = wb.create_sheet(title="Ligne 2")
+
+    for ws in [ws_l1, ws_l2]:
+        ws.page_setup.paperSize = ws.PAPERSIZE_A3
+        ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
+        ws.sheet_properties.pageSetUpPr.fitToPage = True
+        ws.page_setup.fitToHeight = False 
+        ws.page_setup.fitToWidth = 1
+
+    month_idx = 0
+    for (annee, mois), group in df_planning.groupby(['Annee', 'MoisNum']):
+        titre_mois = f"{MOIS_FR[mois].upper()} {annee}"
+        col_offset = month_idx * 5 + 1 
+        
+        for ws in [ws_l1, ws_l2]:
+            ws.column_dimensions[get_column_letter(col_offset)].width = 11     
+            ws.column_dimensions[get_column_letter(col_offset + 1)].width = 12  
+            ws.column_dimensions[get_column_letter(col_offset + 2)].width = 22  
+            ws.column_dimensions[get_column_letter(col_offset + 3)].width = 30  
             
-            # Application des styles d'en-tête
-            for col in range(1, 5): 
-                ws.cell(row=1, column=col).fill = f_head
-                ws.cell(row=1, column=col).font = font_head
-                ws.cell(row=1, column=col).border = b_thin
-            ws.column_dimensions['A'].width, ws.column_dimensions['B'].width = 15, 15
-            ws.column_dimensions['C'].width, ws.column_dimensions['D'].width = 25, 40
+            ws.merge_cells(start_row=1, start_column=col_offset, end_row=1, end_column=col_offset+3)
+            c_title = ws.cell(row=1, column=col_offset, value=titre_mois)
+            c_title.fill, c_title.font, c_title.alignment, c_title.border = f_title, font_title, align_center, b_thin
+            for c_b in range(col_offset + 1, col_offset + 4): ws.cell(row=1, column=c_b).border = b_thin
+            
+            en_tetes = ["Jour", "Date", "Astreinte Prévue", "Modification / Remplaçant"]
+            for i, val in enumerate(en_tetes):
+                c = ws.cell(row=2, column=col_offset + i, value=val)
+                c.fill, c.font, c.border = f_head, font_head, b_thin
 
-            # Remplissage des données
-            for row_idx, (_, row) in enumerate(group.iterrows(), 2):
-                ws.append([row['Jour'], row['Date'], row[ligne], ""])
-                for col in range(1, 5):
-                    c = ws.cell(row=row_idx, column=col)
-                    c.border = b_thin
-                    if row['Type'] == "FÉRIÉ/WE": c.fill = f_we
+        row_offset = 3
+        for _, row in group.iterrows():
+            # L1
+            c1_1 = ws_l1.cell(row=row_offset, column=col_offset, value=row['Jour'])
+            c1_2 = ws_l1.cell(row=row_offset, column=col_offset+1, value=row['Date'])
+            c1_3 = ws_l1.cell(row=row_offset, column=col_offset+2, value=row['Ligne 1'])
+            c1_4 = ws_l1.cell(row=row_offset, column=col_offset+3, value="")
+            
+            # L2
+            c2_1 = ws_l2.cell(row=row_offset, column=col_offset, value=row['Jour'])
+            c2_2 = ws_l2.cell(row=row_offset, column=col_offset+1, value=row['Date'])
+            c2_3 = ws_l2.cell(row=row_offset, column=col_offset+2, value=row['Ligne 2'])
+            c2_4 = ws_l2.cell(row=row_offset, column=col_offset+3, value="")
 
-    # Onglet Bilan
+            for c in [c1_1, c1_2, c1_3, c1_4, c2_1, c2_2, c2_3, c2_4]:
+                c.border = b_thin
+                if row['Type'] == "FÉRIÉ/WE": c.fill = f_we
+            row_offset += 1
+            
+        if month_idx > 0:
+            sep_col = col_offset - 1
+            for ws in [ws_l1, ws_l2]:
+                ws.column_dimensions[get_column_letter(sep_col)].width = 2
+                for r in range(1, row_offset): ws.cell(row=r, column=sep_col).fill = f_sep
+
+        month_idx += 1
+
     ws_bilan = wb.create_sheet(title="Bilan Équité")
     ws_bilan.append(["Manipulateur", "Total Points", "Total Astreintes", "Total L1", "Total L2", "Nb Week-ends"])
-    
     for idx, m in enumerate(d_sc.keys(), 2):
         donnees_m = [m, d_sc[m], d_nbl1[m] + d_nbl2[m], d_nbl1[m], d_nbl2[m], d_sc_we[m]]
-        for col_idx, val in enumerate(donnees_m, 1):
-            ws_bilan.cell(row=idx, column=col_idx, value=val).border = b_thin
-        
+        for col_idx, val in enumerate(donnees_m, 1): ws_bilan.cell(row=idx, column=col_idx, value=val).border = b_thin
     for col in range(1, 7):
-        ws_bilan.column_dimensions[chr(64+col)].width = 20
+        ws_bilan.column_dimensions[get_column_letter(col)].width = 20
         c_head = ws_bilan.cell(row=1, column=col)
         c_head.fill, c_head.font, c_head.border = f_head, font_head, b_thin
 
@@ -330,7 +386,6 @@ with c_cfg:
     st.session_state.d_start = st.date_input("Début", datetime.now())
     st.session_state.d_end = st.date_input("Fin", datetime.now() + timedelta(days=90))
 
-# --- SIDEBAR (ÉQUIPE) ---
 with st.sidebar:
     st.header("⚙️ GESTION DE L'ÉQUIPE")
     with st.expander("➕ Ajouter un manipulateur", expanded=False):
@@ -354,7 +409,6 @@ with st.sidebar:
             sauvegarder_donnees(st.session_state.merms_data); st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-# --- COLONNE GAUCHE (DESIDERATA) ---
 with c_cfg:
     st.write("---")
     st.header("2. Desiderata")
@@ -364,7 +418,6 @@ with c_cfg:
 
 if st.session_state.modal_ouvert: modal_desiderata(st.session_state.modal_ouvert)
 
-# --- COLONNE DROITE (GÉNÉRATION) ---
 with c_res:
     st.header("3. Génération & Export")
     st.markdown('<div class="btn-generer">', unsafe_allow_html=True)
@@ -377,7 +430,7 @@ with c_res:
         st.write("---")
         excel_data = generer_excel_liste(st.session_state.planning_final, st.session_state.scores_finaux, st.session_state.scores_we_finaux, st.session_state.nbl1_finaux, st.session_state.nbl2_finaux)
         st.download_button(
-            label="📥 TÉLÉCHARGEMENT EXCEL", data=excel_data,
+            label="📥 TÉLÉCHARGEMENT EXCEL (MURAL A3)", data=excel_data,
             file_name=f"Planning_RI_{st.session_state.d_start.strftime('%m')}-{st.session_state.d_end.strftime('%m_%Y')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", use_container_width=True
         )
