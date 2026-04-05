@@ -24,37 +24,45 @@ MOIS_FR = {1: "Janvier", 2: "Février", 3: "Mars", 4: "Avril", 5: "Mai", 6: "Jui
 FICHIER_SAUVEGARDE = "equipe_ri.json"
 
 # ==========================================
-# 2. THÈME VISUEL (CSS)
+# 2. THÈME VISUEL (CSS - 100% ANTI-GRIS)
 # ==========================================
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
     
-    /* Typographie et Couleurs globales */
+    /* Typographie globale */
     html, body, [class*="css"], .stApp, [data-testid="stSidebar"] { font-family: 'Inter', sans-serif; }
     p, span, label, div, th, td, input { color: #333333 !important; }
     h1, h2, h3 { color: #000000 !important; }
     svg { fill: #333333 !important; }
     
-    /* Fonds Bleu Clair */
+    /* Fonds Bleu Clair Globaux */
     .stApp, header[data-testid="stHeader"], div[role="dialog"] { background-color: #F0F9FF !important; } 
     [data-testid="stSidebar"] { background-color: #E0F2FE !important; } 
     [data-testid="stModal"] > div:first-child { background-color: rgba(3, 105, 161, 0.5) !important; }
     
-    /* Composants UI (Inputs standards) */
+    /* Inputs standards */
     div[data-baseweb="input"] > div, [data-testid="stExpander"] { 
         background-color: #FFFFFF !important; border: 1px solid #BAE6FD !important; border-radius: 8px; 
     }
     
-    /* === NOUVEAU : FIX DU CALENDRIER DE PÉRIODE (ST.DATE_INPUT) === */
-    div[data-baseweb="popover"] > div, 
-    div[data-baseweb="calendar"], 
-    div[data-baseweb="calendar"] > div {
-        background-color: #FFFFFF !important; 
+    /* === DESTRUCTION TOTALE DU GRIS DANS LE CALENDRIER DE PÉRIODE (ST.DATE_INPUT) === */
+    div[data-baseweb="popover"], 
+    div[data-baseweb="popover"] > div,
+    div[data-baseweb="calendar"],
+    div[data-baseweb="calendar"] > div,
+    div[data-baseweb="calendar"] > div > div,
+    div[data-baseweb="calendar"] [role="heading"],
+    div[data-baseweb="calendar"] [role="grid"],
+    div[data-baseweb="calendar"] [role="row"],
+    div[data-baseweb="calendar"] [role="rowheader"],
+    div[data-baseweb="calendar"] [role="columnheader"] {
+        background-color: #FFFFFF !important;
     }
+    
     /* Jours normaux dans le calendrier */
     div[data-baseweb="calendar"] [role="button"] {
-        background-color: transparent !important;
+        background-color: #FFFFFF !important;
         color: #333333 !important;
     }
     /* Survol d'un jour */
@@ -67,7 +75,7 @@ st.markdown("""
         background-color: #2563EB !important;
         color: #FFFFFF !important;
     }
-    /* ============================================================= */
+    /* ============================================================================== */
 
     div[role="dialog"] { border: 2px solid #BAE6FD !important; border-radius: 12px; }
     h1 { border-bottom: 4px solid #2563EB; padding-bottom: 10px; margin-bottom: 1rem; }
@@ -76,7 +84,7 @@ st.markdown("""
     .stButton>button { border-radius: 8px; border: 1px solid #BAE6FD; background-color: #FFFFFF !important; transition: all 0.2s; font-weight: 600; }
     .stButton>button:hover { border-color: #2563EB; background-color: #DBEAFE !important; transform: translateY(-1px); }
     
-    /* Protection des boutons colorés (Texte/Icone en blanc) */
+    /* Protection des boutons d'action (Texte/Icone en blanc) */
     .btn-valider button *, .btn-generer button *, .btn-supprimer button *, .btn-indispo button *, .btn-dispo button *, .btn-clear button * { color: white !important; fill: white !important; }
     .btn-valider button { background-color: #059669 !important; }
     .btn-generer button { background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%) !important; padding: 1rem !important; }
@@ -152,11 +160,26 @@ def modal_desiderata(name):
         "selectable": True, "locale": "fr", "firstDay": 1, "height": "450px", "unselectAuto": False 
     }
     
+    # === CSS INJECTÉ DANS L'IFRAME DU CALENDRIER (ANTI-GRIS) ===
     css_cal = """
+        body { background-color: #F0F9FF !important; }
         .fc { background-color: #F0F9FF !important; color: #333333 !important; font-family: 'Inter', sans-serif; }
         .fc-theme-standard th, .fc-theme-standard td { border-color: #BAE6FD !important; }
         .fc-col-header-cell { background-color: #E0F2FE !important; }
-        .fc-button { background-color: #0284C7 !important; border-color: #0284C7 !important; color: white !important; }
+        
+        /* Boutons (Mois précédent / Suivant) */
+        .fc-button { background-color: #0284C7 !important; border-color: #0284C7 !important; color: white !important; background-image: none !important; box-shadow: none !important; text-transform: capitalize; }
+        .fc-button:hover { background-color: #0369A1 !important; border-color: #0369A1 !important; }
+        
+        /* Boutons Désactivés (Force un bleu pastel au lieu du gris) */
+        .fc-button:disabled { background-color: #7DD3FC !important; border-color: #7DD3FC !important; color: white !important; opacity: 1 !important; }
+        
+        /* Zones de jours */
+        .fc-day-other { background-color: #FFFFFF !important; opacity: 0.6; }
+        .fc-day-today { background-color: #DBEAFE !important; }
+        
+        /* LE FAMEUX GRIS DE SÉLECTION -> Remplacé par du bleu clair transparent */
+        .fc-highlight { background-color: rgba(37, 99, 235, 0.2) !important; } 
     """
     
     events = [{"title": "INDISPO", "start": d, "end": d, "color": "#DC2626"} for d in st.session_state[t_abs] if d not in st.session_state[t_sel]] + \
@@ -224,7 +247,7 @@ def generer_planning(debut, fin):
 
     # --- PASSE 1 : WEEK-ENDS ---
     for d in jours:
-        if d.weekday() == 5: # Samedi
+        if d.weekday() == 5:
             we_days = [d, d + timedelta(days=1)] if (d + timedelta(days=1)) <= fin else [d]
             d_fri = d - timedelta(days=1)
             
@@ -257,7 +280,6 @@ def generer_planning(debut, fin):
             candidats = []
             for m, v in st.session_state.merms_data.items():
                 if int(ligne[1]) not in v["lignes"] or (ligne == "L2" and planning[d]["L1"] == m) or not est_dispo(m, [d]): continue
-                
                 if (d - timedelta(days=1)) in assigned_dates[m] or (d + timedelta(days=1)) in assigned_dates[m]: continue
                 
                 jours_sem = [ad for ad in assigned_dates[m] if ad.isocalendar()[1] == d.isocalendar()[1]]
@@ -284,7 +306,7 @@ def generer_planning(debut, fin):
     return res_df, sc, sc_we, n_l1, n_l2
 
 # ==========================================
-# 6. GÉNÉRATION EXCEL (A3 PAYSAGE - CÔTE À CÔTE)
+# 6. GÉNÉRATION EXCEL (A3 PAYSAGE - OPTIMISÉ POUR LECTURE)
 # ==========================================
 def generer_excel_liste(df_planning, d_sc, d_sc_we, d_nbl1, d_nbl2):
     output = io.BytesIO()
@@ -292,13 +314,17 @@ def generer_excel_liste(df_planning, d_sc, d_sc_we, d_nbl1, d_nbl2):
     wb.remove(wb.active)
 
     f_title = PatternFill(start_color="0284C7", end_color="0284C7", fill_type="solid")
-    font_title = Font(color="FFFFFF", bold=True, size=13)
+    font_title = Font(color="FFFFFF", bold=True, size=18) 
     f_head = PatternFill(start_color="1E40AF", end_color="1E40AF", fill_type="solid")
-    font_head = Font(color="FFFFFF", bold=True)
+    font_head = Font(color="FFFFFF", bold=True, size=14) 
+    font_data = Font(size=13) 
+    
     b_thin = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
     f_we = PatternFill(start_color="DBEAFE", end_color="DBEAFE", fill_type="solid")
     f_sep = PatternFill(start_color="E2E8F0", end_color="E2E8F0", fill_type="solid")
+    
     align_center = Alignment(horizontal='center', vertical='center')
+    align_left = Alignment(horizontal='left', vertical='center')
 
     df_planning['Annee'] = df_planning['DateObj'].dt.year
     df_planning['MoisNum'] = df_planning['DateObj'].dt.month
@@ -319,10 +345,13 @@ def generer_excel_liste(df_planning, d_sc, d_sc_we, d_nbl1, d_nbl2):
         col_offset = month_idx * 5 + 1 
         
         for ws in [ws_l1, ws_l2]:
-            ws.column_dimensions[get_column_letter(col_offset)].width = 11     
-            ws.column_dimensions[get_column_letter(col_offset + 1)].width = 12  
-            ws.column_dimensions[get_column_letter(col_offset + 2)].width = 22  
-            ws.column_dimensions[get_column_letter(col_offset + 3)].width = 30  
+            ws.column_dimensions[get_column_letter(col_offset)].width = 12      
+            ws.column_dimensions[get_column_letter(col_offset + 1)].width = 14  
+            ws.column_dimensions[get_column_letter(col_offset + 2)].width = 25  
+            ws.column_dimensions[get_column_letter(col_offset + 3)].width = 24  
+            
+            ws.row_dimensions[1].height = 30
+            ws.row_dimensions[2].height = 25
             
             ws.merge_cells(start_row=1, start_column=col_offset, end_row=1, end_column=col_offset+3)
             c_title = ws.cell(row=1, column=col_offset, value=titre_mois)
@@ -332,25 +361,24 @@ def generer_excel_liste(df_planning, d_sc, d_sc_we, d_nbl1, d_nbl2):
             en_tetes = ["Jour", "Date", "Astreinte Prévue", "Modification / Remplaçant"]
             for i, val in enumerate(en_tetes):
                 c = ws.cell(row=2, column=col_offset + i, value=val)
-                c.fill, c.font, c.border = f_head, font_head, b_thin
+                c.fill, c.font, c.border, c.alignment = f_head, font_head, b_thin, align_center
 
         row_offset = 3
         for _, row in group.iterrows():
-            # L1
-            c1_1 = ws_l1.cell(row=row_offset, column=col_offset, value=row['Jour'])
-            c1_2 = ws_l1.cell(row=row_offset, column=col_offset+1, value=row['Date'])
-            c1_3 = ws_l1.cell(row=row_offset, column=col_offset+2, value=row['Ligne 1'])
-            c1_4 = ws_l1.cell(row=row_offset, column=col_offset+3, value="")
-            
-            # L2
-            c2_1 = ws_l2.cell(row=row_offset, column=col_offset, value=row['Jour'])
-            c2_2 = ws_l2.cell(row=row_offset, column=col_offset+1, value=row['Date'])
-            c2_3 = ws_l2.cell(row=row_offset, column=col_offset+2, value=row['Ligne 2'])
-            c2_4 = ws_l2.cell(row=row_offset, column=col_offset+3, value="")
+            for ws, ligne in [(ws_l1, 'Ligne 1'), (ws_l2, 'Ligne 2')]:
+                ws.row_dimensions[row_offset].height = 24 
+                
+                c1 = ws.cell(row=row_offset, column=col_offset, value=row['Jour'])
+                c2 = ws.cell(row=row_offset, column=col_offset+1, value=row['Date'])
+                c3 = ws.cell(row=row_offset, column=col_offset+2, value=row[ligne])
+                c4 = ws.cell(row=row_offset, column=col_offset+3, value="")
 
-            for c in [c1_1, c1_2, c1_3, c1_4, c2_1, c2_2, c2_3, c2_4]:
-                c.border = b_thin
-                if row['Type'] == "FÉRIÉ/WE": c.fill = f_we
+                for c in [c1, c2, c3, c4]:
+                    c.border = b_thin
+                    c.font = font_data
+                    c.alignment = align_center if c.column != col_offset+3 else align_left
+                    if row['Type'] == "FÉRIÉ/WE": c.fill = f_we
+                    
             row_offset += 1
             
         if month_idx > 0:
