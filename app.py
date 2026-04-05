@@ -121,6 +121,8 @@ def modal_desiderata(name):
 
 # --- MOTEUR ALGORITHMIQUE AVANCÉ (DOUBLE ÉQUITÉ) ---
 def generer_planning(debut, fin):
+    debut = pd.Timestamp(debut)
+    fin = pd.Timestamp(fin)
     fr_holidays = holidays.France(years=[debut.year, fin.year])
     jours = pd.date_range(debut, fin)
     
