@@ -2,139 +2,159 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 import holidays
-import locale
 
-# --- CONFIGURATION DE L'INTERFACE ---
-st.set_page_config(page_title="Planning RI Nordik", layout="wide")
+# --- CONFIGURATION ---
+st.set_page_config(page_title="Planning RI - Haute Visibilité", layout="wide")
 
-# Style Scandinave Intégré
+# Traduction manuelle pour garantir le français partout (plus fiable que locale)
+JOURS_FR = {
+    "Monday": "Lundi", "Tuesday": "Mardi", "Wednesday": "Mercredi",
+    "Thursday": "Jeudi", "Friday": "Vendredi", "Saturday": "Samedi", "Sunday": "Dimanche"
+}
+
+# Style Haute Visibilité (Noir sur Blanc / Bleu Roi)
 st.markdown("""
     <style>
-    .stApp { background-color: #ECEFF4; } /* Fond gris très clair */
-    h1, h2 { color: #2E3440; font-family: 'Helvetica'; }
-    .stHeader { background-color: #5E81AC; color: white; padding: 10px; border-radius: 5px; }
-    .css-1544893 { background-color: #D8DEE9; } /* Sidebar */
-    .stTabs [data-baseweb="tab-list"] { gap: 24px; }
-    .stTabs [data-baseweb="tab"] { height: 50px; background-color: white; border-radius: 5px 5px 0 0; }
+    .stApp { background-color: #FFFFFF; }
+    h1, h2 { color: #1A202C !important; font-weight: 800; border-left: 5px solid #0056b3; padding-left: 15px; }
+    .stButton>button { 
+        background-color: #0056b3; 
+        color: white !important; 
+        font-weight: bold; 
+        border-radius: 4px;
+        border: 1px solid #003d7a;
+    }
+    .stDataFrame { border: 1px solid #E2E8F0; }
+    /* Amélioration du contraste des tableaux */
+    [data-testid="stTable"] td { color: #1A202C !important; font-weight: 500; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- DONNÉES INTÉGRÉES (Pas besoin de fichiers externes) ---
+# --- INITIALISATION DE L'ÉQUIPE ---
 if 'merms_data' not in st.session_state:
+    noms = [
+        "Lechevin L.", "Abdelaoui F.", "Laurin M.", "Cotton L.", 
+        "Bacquet V.", "Leroux C.", "Brasseur O.", "Dupierris P.A.", 
+        "Talbaut V.", "Michel L.", "Dhondt F.", "Geffroy C."
+    ]
     st.session_state.merms_data = {
-        "Lechevin L.": {"lignes": [1, 2], "score": 0},
-        "Abdelaoui F.": {"lignes": [1, 2], "score": 0},
-        "Laurin M.": {"lignes": [1, 2], "score": 0},
-        "Cotton L.": {"lignes": [1, 2], "score": 0},
-        "Bacquet V.": {"lignes": [1, 2], "score": 0},
-        "Leroux C.": {"lignes": [1, 2], "score": 0},
-        "Brasseur O.": {"lignes": [1, 2], "score": 0},
-        "Dupierris P.A.": {"lignes": [1, 2], "score": 0},
-        "Talbaut V.": {"lignes": [1, 2], "score": 0},
-        "Michel L.": {"lignes": [1, 2], "score": 0},
-        "Dhondt F.": {"lignes": [2], "score": 0},
-        "Geffroy C.": {"lignes": [2], "score": 0}
+        name: {
+            "lignes": [2] if name in ["Dhondt F.", "Geffroy C."] else [1, 2],
+            "score_cumule": 0,
+            "pref_vendredi": False,
+            "absences": []
+        } for name in noms
     }
 
-# --- FONCTION DE GÉNÉRATION ---
-def generer_planning(debut, fin, abs_dict, couplage_vendredi):
+# --- POPUP DESIDERATA (DIALOG) ---
+@st.dialog("Saisie des Desiderata")
+def ouvrir_config_perso(name):
+    st.write(f"### 👤 Paramètres : {name}")
+    
+    # Calendrier de sélection multiple
+    absences = st.multiselect(
+        "Indiquez vos jours d'indisponibilité (vacances/repos) :",
+        pd.date_range(st.session_state.d_start, st.session_state.d_end).tolist(),
+        format_func=lambda x: x.strftime("%d/%m/%Y"),
+        default=st.session_state.merms_data[name]["absences"]
+    )
+    
+    # Option Vendredi
+    v_opt = st.toggle("Coupler le vendredi à mes week-ends ?", 
+                     value=st.session_state.merms_data[name]["pref_vendredi"])
+    
+    if st.button("Enregistrer les modifications"):
+        st.session_state.merms_data[name]["absences"] = absences
+        st.session_state.merms_data[name]["pref_vendredi"] = v_opt
+        st.rerun()
+
+# --- MOTEUR D'ÉQUITÉ FRANÇAIS ---
+def generer_planning_equitable(debut, fin):
     fr_holidays = holidays.France(years=[debut.year, fin.year])
     jours = pd.date_range(debut, fin)
-    planning = []
+    resultats = []
     
-    # On travaille sur une copie locale des scores pour l'équité du mois
-    temp_scores = {m: st.session_state.merms_data[m]['score'] for m in st.session_state.merms_data}
+    # Copie des scores pour la simulation
+    scores_sim = {m: v['score_cumule'] for m, v in st.session_state.merms_data.items()}
     
-    current_idx = 0
-    while current_idx < len(jours):
-        jour = jours[current_idx]
+    i = 0
+    while i < len(jours):
+        d = jours[i]
+        is_fete = d in fr_holidays
+        is_we = d.weekday() >= 5 or is_fete
         
-        # Identification du bloc (Week-end ou Journée seule)
-        is_we = jour.weekday() >= 5 or jour in fr_holidays
-        bloc = [jour]
-        
-        # Logique de couplage
-        if couplage_vendredi and jour.weekday() == 4: # Vendredi
-            if current_idx + 2 < len(jours):
-                bloc = [jours[current_idx], jours[current_idx+1], jours[current_idx+2]]
-                current_idx += 2
-        elif jour.weekday() == 5: # Samedi
-            if current_idx + 1 < len(jours):
-                bloc = [jours[current_idx], jours[current_idx+1]]
-                current_idx += 1
+        # Définition du bloc pour l'équité (Samedi+Dimanche ou Vendredi+Samedi+Dimanche)
+        bloc_dates = [d]
+        if d.weekday() == 5 and (i + 1) < len(jours): # Samedi
+            bloc_dates.append(jours[i+1])
+            i += 1
+            
+        # Filtrage des agents disponibles sur tout le bloc
+        def est_dispo(m, dates):
+            return not any(jd in st.session_state.merms_data[m]["absences"] for jd in dates)
 
-        # Attribution Ligne 1
-        dispo_l1 = [m for m, v in st.session_state.merms_data.items() 
-                    if 1 in v['lignes'] and not any(d in abs_dict.get(m, []) for d in bloc)]
-        l1 = min(dispo_l1, key=lambda x: temp_scores[x]) if dispo_l1 else "⚠️ À FIXER"
+        # Attribution Ligne 1 (Sauf Dhondt et Geffroy)
+        dispos_l1 = [m for m in st.session_state.merms_data if 1 in st.session_state.merms_data[m]["lignes"] and est_dispo(m, bloc_dates)]
+        l1 = min(dispos_l1, key=lambda x: scores_sim[x]) if dispos_l1 else "⚠️ À DÉFINIR"
         
         # Attribution Ligne 2
-        dispo_l2 = [m for m, v in st.session_state.merms_data.items() 
-                    if 2 in v['lignes'] and m != l1 and not any(d in abs_dict.get(m, []) for d in bloc)]
-        l2 = min(dispo_l2, key=lambda x: temp_scores[x]) if dispo_l2 else "⚠️ À FIXER"
+        dispos_l2 = [m for m in st.session_state.merms_data if m != l1 and est_dispo(m, bloc_dates)]
+        l2 = min(dispos_l2, key=lambda x: scores_sim[x]) if dispos_l2 else "⚠️ À DÉFINIR"
 
-        # Remplissage
-        for d in bloc:
-            poids = 3 if (d.weekday() >= 5 or d in fr_holidays) else 1
-            if l1 != "⚠️ À FIXER": temp_scores[l1] += poids
-            if l2 != "⚠️ À FIXER": temp_scores[l2] += poids
+        # Calcul des points (Semaine=1, WE/Férié=3)
+        poids = 3 if is_we else 1
+        
+        for date_b in bloc_dates:
+            if l1 != "⚠️ À DÉFINIR": scores_sim[l1] += poids
+            if l2 != "⚠️ À DÉFINIR": scores_sim[l2] += poids
             
-            planning.append({
-                "Date": d.strftime("%d/%m/%Y"),
-                "Jour": d.strftime("%A"),
-                "Ligne 1": l1,
-                "Ligne 2": l2,
-                "Férié": "Oui" if d in fr_holidays else "Non"
+            resultats.append({
+                "Date": date_b.strftime("%d/%m/%Y"),
+                "Jour": JOURS_FR[date_b.strftime("%A")],
+                "Ligne d'Astreinte 1": l1,
+                "Ligne d'Astreinte 2": l2,
+                "Type": "FÉRIÉ" if date_b in fr_holidays else ("WEEK-END" if date_b.weekday() >= 5 else "SEMAINE")
             })
-        current_idx += 1
+        i += 1
         
-    return pd.DataFrame(planning), temp_scores
+    return pd.DataFrame(resultats), scores_sim
 
-# --- INTERFACE PRINCIPALE ---
-st.title("❄️ Nordik Planning RI")
-st.write("Gestion des astreintes sans import de fichiers.")
+# --- INTERFACE ---
+st.title("📅 Planning de Radiologie Interventionnelle")
 
-with st.sidebar:
-    st.header("⚙️ Configuration")
-    d_start = st.date_input("Date de début", datetime.now())
-    d_end = st.date_input("Date de fin", datetime.now() + timedelta(days=30))
-    c_vendredi = st.checkbox("Coupler Vendredi au WE", value=True)
+col_params, col_main = st.columns([1, 2])
+
+with col_params:
+    st.header("1. Période")
+    st.session_state.d_start = st.date_input("Date de début", datetime.now())
+    st.session_state.d_end = st.date_input("Date de fin", datetime.now() + timedelta(days=31))
     
-    if st.button("🗑️ Réinitialiser les scores"):
-        for m in st.session_state.merms_data: st.session_state.merms_data[m]['score'] = 0
-        st.success("Scores remis à zéro")
+    st.write("---")
+    st.header("2. Desiderata")
+    st.info("Cliquez sur un nom pour ouvrir son calendrier.")
+    for merm in st.session_state.merms_data.keys():
+        if st.button(f"👤 {merm}", key=f"btn_{merm}", use_container_width=True):
+            ouvrir_config_perso(merm)
 
-# Section Desiderata
-st.header("📅 Calendrier des Desiderata")
-expander = st.expander("Saisir les absences et vacances")
-abs_input = {}
-with expander:
-    cols = st.columns(3)
-    for i, merm in enumerate(st.session_state.merms_data.keys()):
-        with cols[i % 3]:
-            abs_input[merm] = st.multiselect(f"{merm}", 
-                                             pd.date_range(d_start, d_end).tolist(),
-                                             format_func=lambda x: x.strftime("%d/%m"),
-                                             key=f"abs_{merm}")
+with col_main:
+    st.header("3. Génération du Planning")
+    if st.button("🔄 CALCULER LA RÉPARTITION ÉQUITABLE", use_container_width=True):
+        df_final, scores_finaux = generer_planning_equitable(st.session_state.d_start, st.session_state.d_end)
+        st.session_state.res_df = df_final
+        st.session_state.res_scores = scores_finaux
 
-# Génération
-if st.button("💎 Générer le Planning"):
-    df, nouveaux_scores = generer_planning(d_start, d_end, abs_input, c_vendredi)
-    
-    tab1, tab2, tab3 = st.tabs(["📋 Ligne d'Astreinte 1", "📋 Ligne d'Astreinte 2", "📊 Équité"])
-    
-    with tab1:
-        st.subheader("Planning Ligne 1")
-        st.dataframe(df[["Date", "Jour", "Ligne 1", "Férié"]], use_container_width=True)
+    if 'res_df' in st.session_state:
+        ong1, ong2, ong3 = st.tabs(["📋 LIGNE 1", "📋 LIGNE 2", "📊 ÉQUITÉ (POINTS)"])
         
-    with tab2:
-        st.subheader("Planning Ligne 2")
-        st.dataframe(df[["Date", "Jour", "Ligne 2", "Férié"]], use_container_width=True)
-        
-    with tab3:
-        st.subheader("Compteurs de points (Équité)")
-        st.write("Semaine = 1pt | WE & Férié = 3pts")
-        st.table(pd.DataFrame.from_dict(nouveaux_scores, orient='index', columns=['Points cumulés']))
-        if st.button("💾 Enregistrer ces scores pour le mois prochain"):
-            for m in nouveaux_scores: st.session_state.merms_data[m]['score'] = nouveaux_scores[m]
-            st.success("Scores enregistrés !")
+        with ong1:
+            st.table(st.session_state.res_df[["Date", "Jour", "Ligne d'Astreinte 1", "Type"]])
+        with ong2:
+            st.table(st.session_state.res_df[["Date", "Jour", "Ligne d'Astreinte 2", "Type"]])
+        with ong3:
+            st.subheader("Compteur d'équité annuel")
+            df_bilan = pd.DataFrame.from_dict(st.session_state.res_scores, orient='index', columns=['Points'])
+            st.bar_chart(df_bilan)
+            if st.button("💾 Valider et Enregistrer ces scores"):
+                for m in st.session_state.res_scores:
+                    st.session_state.merms_data[m]['score_cumule'] = st.session_state.res_scores[m]
+                st.success("Les scores ont été enregistrés pour la prochaine génération.")
