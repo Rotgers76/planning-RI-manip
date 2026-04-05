@@ -22,7 +22,7 @@ st.markdown("""
 # --- INITIALISATION ---
 if 'merms_data' not in st.session_state:
     noms = ["Lechevin L.", "Abdelaoui F.", "Laurin M.", "Cotton L.", "Bacquet V.", 
-            "Leroux C.", "Brasseur O.", "Dupierris P.A.", "Talbaut V.", "Michel L.", "Dhondt F.", "Geffroy C. text_content"]
+            "Leroux C.", "Brasseur O.", "Dupierris P.A.", "Talbaut V.", "Michel L.", "Dhondt F.", "Geffroy C."]
     st.session_state.merms_data = {
         name: {"lignes": [2] if "Dhondt" in name or "Geffroy" in name else [1, 2],
                "score_cumule": 0, "pref_vendredi": False, "absences": []} for name in noms
