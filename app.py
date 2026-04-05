@@ -13,23 +13,41 @@ from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Planning RI Pro", layout="wide", initial_sidebar_state="expanded")
 
-# --- THÈME MODERNE & ERGONOMIQUE (CSS) ---
+# --- THÈME MODERNE & ERGONOMIQUE (BOUCLIER ANTI DARK-MODE) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
-    html, body, [class*="css"] { font-family: 'Inter', sans-serif; color: #1E293B; }
-    .stApp { background-color: #F8FAFC; }
-    h1 { color: #0F172A; font-weight: 800; border-bottom: 4px solid #2563EB; padding-bottom: 10px; margin-bottom: 1rem; }
-    h2 { color: #334155; font-weight: 700; margin-top: 1.5rem; }
-    .stButton>button { width: 100%; border-radius: 8px; border: 1px solid #CBD5E1; background-color: #FFFFFF; color: #334155; padding: 0.6rem; transition: all 0.2s; text-align: left; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-    .stButton>button:hover { border-color: #2563EB; color: #2563EB; background-color: #EFF6FF; transform: translateY(-1px); box-shadow: 0 4px 6px rgba(37, 99, 235, 0.1); }
-    .btn-valider button { background-color: #059669 !important; color: white !important; font-weight: 800; }
-    .btn-generer button { background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%) !important; color: white !important; font-weight: 800; padding: 1rem !important; }
-    .btn-supprimer button { background-color: #DC2626 !important; color: white !important; padding: 2px 10px !important; }
+    
+    /* 1. FORCER LA COULEUR DU TEXTE POUR CONTRER LE DARK MODE */
+    .stApp, .stApp p, .stApp span, .stApp label, .stApp div, [data-testid="stTable"] th, [data-testid="stTable"] td { 
+        font-family: 'Inter', sans-serif;
+        color: #1E293B !important; 
+    }
+    
+    /* Forcer le fond clair global */
+    .stApp { background-color: #F8FAFC !important; }
+    
+    /* 2. Titres */
+    h1 { color: #0F172A !important; font-weight: 800; border-bottom: 4px solid #2563EB; padding-bottom: 10px; margin-bottom: 1rem; }
+    h2, h3 { color: #334155 !important; font-weight: 700; margin-top: 1.5rem; }
+    
+    /* 3. Cartes et Boutons normaux */
+    .stButton>button { width: 100%; border-radius: 8px; border: 1px solid #CBD5E1; background-color: #FFFFFF !important; color: #334155 !important; padding: 0.6rem; transition: all 0.2s; text-align: left; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    .stButton>button:hover { border-color: #2563EB; color: #2563EB !important; background-color: #EFF6FF !important; transform: translateY(-1px); box-shadow: 0 4px 6px rgba(37, 99, 235, 0.1); }
+    
+    /* 4. Boutons d'action spécifiques (Exceptions où le texte DOIT être blanc) */
+    .btn-valider button, .btn-valider button span, .btn-valider button div, .btn-valider button p { background-color: #059669 !important; color: white !important; font-weight: 800; }
+    .btn-generer button, .btn-generer button span, .btn-generer button div, .btn-generer button p { background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%) !important; color: white !important; font-weight: 800; padding: 1rem !important; }
+    .btn-supprimer button, .btn-supprimer button span { background-color: #DC2626 !important; color: white !important; padding: 2px 10px !important; }
+    .btn-indispo button, .btn-indispo button span { background-color: #DC2626 !important; color: white !important; font-weight: bold; }
+    .btn-dispo button, .btn-dispo button span { background-color: #16A34A !important; color: white !important; font-weight: bold; }
+    .btn-clear button, .btn-clear button span { background-color: #64748B !important; color: white !important; font-weight: bold; }
+
+    /* 5. Onglets et Tableaux */
     .stTabs [data-baseweb="tab-list"] { gap: 10px; background-color: #E2E8F0; padding: 6px; border-radius: 10px; }
-    .stTabs [data-baseweb="tab"] { border-radius: 6px; background-color: transparent; font-weight: 600; color: #64748B;}
+    .stTabs [data-baseweb="tab"] { border-radius: 6px; background-color: transparent; font-weight: 600; color: #64748B !important;}
     .stTabs [aria-selected="true"] { background-color: white !important; color: #2563EB !important; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    [data-testid="stTable"] { background-color: white; border-radius: 8px; overflow: hidden; border: 1px solid #E2E8F0; }
+    [data-testid="stTable"] { background-color: white !important; border-radius: 8px; overflow: hidden; border: 1px solid #E2E8F0; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -53,7 +71,6 @@ def sauvegarder_donnees(data):
     with open(FICHIER_SAUVEGARDE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
 
-# Initialisation
 if 'merms_data' not in st.session_state:
     donnees_sauvees = charger_donnees()
     if donnees_sauvees:
@@ -67,35 +84,45 @@ if 'merms_data' not in st.session_state:
         }
         sauvegarder_donnees(st.session_state.merms_data)
 
-# Variable d'état pour empêcher la fenêtre de se fermer
 if 'modal_ouvert' not in st.session_state:
     st.session_state.modal_ouvert = None
 
-# --- FENÊTRE POP-UP (SÉCURISÉE CONTRE LA FERMETURE) ---
+# --- FENÊTRE POP-UP (SÉLECTION MULTIPLE) ---
 @st.dialog("Saisie des Desiderata", width="large")
 def modal_desiderata(name):
     st.write(f"### 👤 Agent : **{name}**")
-    temp_key = f"temp_{name}"
+    st.info("1️⃣ Cliquez ou glissez pour sélectionner un ou plusieurs jours (ils s'afficheront en bleu).\n2️⃣ Choisissez ensuite leur statut en bas.")
+    
+    temp_abs_key = f"temp_abs_{name}"
+    temp_sel_key = f"temp_sel_{name}"
     last_sel_key = f"last_sel_{name}"
     
-    if temp_key not in st.session_state:
-        st.session_state[temp_key] = st.session_state.merms_data[name]["absences"].copy()
+    if temp_abs_key not in st.session_state:
+        st.session_state[temp_abs_key] = st.session_state.merms_data[name]["absences"].copy()
+    if temp_sel_key not in st.session_state:
+        st.session_state[temp_sel_key] = set() 
 
-    # Cadrage strict du calendrier sur la période demandée
     str_debut = st.session_state.d_start.strftime("%Y-%m-%d")
-    str_fin = (st.session_state.d_end + timedelta(days=1)).strftime("%Y-%m-%d") # +1 car exclusif
+    str_fin = (st.session_state.d_end + timedelta(days=1)).strftime("%Y-%m-%d")
 
     cal_options = {
-        "initialDate": str_debut, # Ouvre sur le mois du début de période
-        "validRange": {"start": str_debut, "end": str_fin}, # Bloque les clics hors période
+        "initialDate": str_debut, 
+        "validRange": {"start": str_debut, "end": str_fin},
         "headerToolbar": {"left": "prev,next", "center": "title", "right": ""},
-        "selectable": True, "locale": "fr", "firstDay": 1, "height": "450px"
+        "selectable": True, "locale": "fr", "firstDay": 1, "height": "450px",
+        "unselectAuto": False 
     }
     
-    events = [{"title": "ABSENT", "start": d, "end": d, "color": "#DC2626"} for d in st.session_state[temp_key]]
+    events = []
+    for d in st.session_state[temp_abs_key]:
+        if d not in st.session_state[temp_sel_key]:
+            events.append({"title": "INDISPO", "start": d, "end": d, "color": "#DC2626"})
+            
+    for d in st.session_state[temp_sel_key]:
+        events.append({"title": "SÉLECTION", "start": d, "end": d, "color": "#3B82F6"}) 
+
     res = calendar(events=events, options=cal_options, key=f"cal_{name}")
 
-    # Logique pour éviter la boucle infinie de rafraîchissement
     if "select" in res:
         current_sel = str(res["select"])
         if current_sel != st.session_state.get(last_sel_key):
@@ -105,36 +132,57 @@ def modal_desiderata(name):
             new_days = pd.date_range(start, end_raw.strftime("%Y-%m-%d")).strftime("%Y-%m-%d").tolist()
             
             for d in new_days:
-                if d not in st.session_state[temp_key]: 
-                    st.session_state[temp_key].append(d)
-            st.rerun() # Rafraîchit l'affichage, mais ne fermera plus la fenêtre grâce au session_state
-
-    col_a, col_b = st.columns(2)
-    with col_a:
-        if st.button("🗑️ Effacer toutes mes saisies", use_container_width=True):
-            st.session_state[temp_key] = []
-            st.session_state[last_sel_key] = None
+                st.session_state[temp_sel_key].add(d)
             st.rerun()
-    with col_b:
-        v_pref = st.toggle("Coupler le vendredi au WE", value=st.session_state.merms_data[name]["pref_vendredi"])
+
+    # Barre d'actions
+    col_act1, col_act2, col_act3 = st.columns(3)
+    with col_act1:
+        st.markdown('<div class="btn-indispo">', unsafe_allow_html=True)
+        if st.button("🔴 Rendre Indisponible", use_container_width=True):
+            for d in st.session_state[temp_sel_key]:
+                if d not in st.session_state[temp_abs_key]:
+                    st.session_state[temp_abs_key].append(d)
+            st.session_state[temp_sel_key].clear() 
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+            
+    with col_act2:
+        st.markdown('<div class="btn-dispo">', unsafe_allow_html=True)
+        if st.button("🟢 Rendre Disponible", use_container_width=True):
+            for d in st.session_state[temp_sel_key]:
+                if d in st.session_state[temp_abs_key]:
+                    st.session_state[temp_abs_key].remove(d)
+            st.session_state[temp_sel_key].clear() 
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+    with col_act3:
+        st.markdown('<div class="btn-clear">', unsafe_allow_html=True)
+        if st.button("⚪ Vider la sélection", use_container_width=True):
+            st.session_state[temp_sel_key].clear()
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    st.write("---")
+    v_pref = st.toggle("Coupler le vendredi au WE (lorsque je suis d'astreinte)", value=st.session_state.merms_data[name]["pref_vendredi"])
 
     st.write("---")
     st.markdown('<div class="btn-valider">', unsafe_allow_html=True)
     if st.button("✅ CONFIRMER ET ENREGISTRER MES CHOIX", use_container_width=True):
-        st.session_state.merms_data[name]["absences"] = st.session_state[temp_key]
+        st.session_state.merms_data[name]["absences"] = st.session_state[temp_abs_key]
         st.session_state.merms_data[name]["pref_vendredi"] = v_pref
-        del st.session_state[temp_key]
+        del st.session_state[temp_abs_key]
+        del st.session_state[temp_sel_key]
         sauvegarder_donnees(st.session_state.merms_data)
-        st.session_state.modal_ouvert = None # Autorise la fermeture
+        st.session_state.modal_ouvert = None
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- MOTEUR ALGORITHMIQUE AVANCÉ ---
+# --- MOTEUR ALGORITHMIQUE ---
 def generer_planning(debut, fin):
-    # Correction de l'erreur Timestamp
     debut = pd.Timestamp(debut)
     fin = pd.Timestamp(fin)
-    
     fr_holidays = holidays.France(years=[debut.year, fin.year])
     jours = pd.date_range(debut, fin)
     
@@ -180,7 +228,7 @@ def generer_planning(debut, fin):
                         assigned_dates[choix].add(d_fri)
                         scores[choix] += 1
                         
-    # 2. PASSE DE LA SEMAINE 
+    # 2. PASSE DE LA SEMAINE
     for d in jours:
         for ligne in ["L1", "L2"]:
             if planning[d][ligne] != "⚠️ À POURVOIR": continue
@@ -280,7 +328,6 @@ def generer_excel_liste(df_planning, dict_scores, dict_scores_we):
 # --- INTERFACE PRINCIPALE ---
 st.title("🏥 Planning de Radiologie Interventionnelle")
 
-# On définit d'abord les dates pour pouvoir les utiliser dans les calendriers
 col_cfg, col_res = st.columns([1, 2.2])
 
 with col_cfg:
@@ -318,14 +365,12 @@ with st.sidebar:
 with col_cfg:
     st.write("---")
     st.header("2. Desiderata")
-    # Au lieu d'ouvrir directement, on sauvegarde le nom dans la session_state
     for merm in st.session_state.merms_data.keys():
         n_abs = len(st.session_state.merms_data[merm]["absences"])
         if st.button(f"👤 {merm} ({n_abs} j. posés)", key=f"btn_{merm}"):
             st.session_state.modal_ouvert = merm
-            st.rerun() # On rafraîchit pour ouvrir proprement le modal
+            st.rerun() 
 
-# Déclenchement sécurisé du modal
 if st.session_state.modal_ouvert:
     modal_desiderata(st.session_state.modal_ouvert)
 
@@ -345,7 +390,7 @@ with col_res:
         nom_fichier = f"Planning_RI_{st.session_state.d_start.strftime('%m')}-{st.session_state.d_end.strftime('%m_%Y')}.xlsx"
         
         st.download_button(
-            label="📥 TÉLÉCHARGEMENT EXCEL",
+            label="📥 TÉLÉCHARGEMENT EXCEL (AVEC COLONNE MODIFICATION)",
             data=excel_data,
             file_name=nom_fichier,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -358,7 +403,7 @@ with col_res:
         with onglet_l1: st.table(st.session_state.planning_final[["Date", "Jour", "Ligne 1", "Type"]])
         with onglet_l2: st.table(st.session_state.planning_final[["Date", "Jour", "Ligne 2", "Type"]])
         with onglet_stats:
-            st.subheader("Bilan d'Équité")
+            st.subheader("Bilan d'Équité (Double validation)")
             df_bilan = pd.DataFrame({"Nombre de Week-ends": st.session_state.scores_we_finaux, "Points Globaux": st.session_state.scores_finaux})
             st.table(df_bilan)
             if st.button("💾 VALIDER CE TRIMESTRE ET SAUVEGARDER LES SCORES"):
@@ -366,4 +411,4 @@ with col_res:
                     st.session_state.merms_data[m]['score_cumule'] = st.session_state.scores_finaux[m]
                     st.session_state.merms_data[m]['score_we'] = st.session_state.scores_we_finaux[m]
                 sauvegarder_donnees(st.session_state.merms_data)
-                st.success("✅ Base de données mise à jour !")
+                st.success("✅ Base de données mise à jour ! L'algorithme se souviendra du nombre de WE réalisés par chacun.")
