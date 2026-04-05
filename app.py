@@ -7,7 +7,6 @@ import json
 import os
 import io
 
-# --- IMPORTATIONS POUR EXCEL ---
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
 
@@ -34,23 +33,19 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- TRADUCTIONS FRANÇAISES ---
 JOURS_FR = {"Monday": "Lundi", "Tuesday": "Mardi", "Wednesday": "Mercredi",
             "Thursday": "Jeudi", "Friday": "Vendredi", "Saturday": "Samedi", "Sunday": "Dimanche"}
 MOIS_FR = {1: "Janvier", 2: "Février", 3: "Mars", 4: "Avril", 5: "Mai", 6: "Juin",
            7: "Juillet", 8: "Août", 9: "Septembre", 10: "Octobre", 11: "Novembre", 12: "Décembre"}
 
-# --- SYSTÈME DE SAUVEGARDE LOCALE ---
 FICHIER_SAUVEGARDE = "equipe_ri.json"
 
 def charger_donnees():
     if os.path.exists(FICHIER_SAUVEGARDE):
         with open(FICHIER_SAUVEGARDE, "r", encoding="utf-8") as f:
             data = json.load(f)
-            # Mise à jour automatique des anciens fichiers pour intégrer le score WE
             for m in data:
-                if "score_we" not in data[m]:
-                    data[m]["score_we"] = 0
+                if "score_we" not in data[m]: data[m]["score_we"] = 0
             return data
     return None
 
@@ -58,7 +53,7 @@ def sauvegarder_donnees(data):
     with open(FICHIER_SAUVEGARDE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
 
-# --- INITIALISATION DE LA BASE DE DONNÉES ---
+# Initialisation
 if 'merms_data' not in st.session_state:
     donnees_sauvees = charger_donnees()
     if donnees_sauvees:
@@ -67,44 +62,58 @@ if 'merms_data' not in st.session_state:
         noms = ["Lechevin L.", "Abdelaoui F.", "Laurin M.", "Cotton L.", "Bacquet V.", 
                 "Leroux C.", "Brasseur O.", "Dupierris P.A.", "Talbaut V.", "Michel L.", "Dhondt F.", "Geffroy C."]
         st.session_state.merms_data = {
-            name: {
-                "lignes": [2] if name in ["Dhondt F.", "Geffroy C."] else [1, 2],
-                "score_cumule": 0, 
-                "score_we": 0, # NOUVEAU COMPTEUR SPÉCIFIQUE WEEK-END
-                "pref_vendredi": False, 
-                "absences": []
-            } for name in noms
+            name: {"lignes": [2] if name in ["Dhondt F.", "Geffroy C."] else [1, 2],
+                   "score_cumule": 0, "score_we": 0, "pref_vendredi": False, "absences": []} for name in noms
         }
         sauvegarder_donnees(st.session_state.merms_data)
 
-# --- FENÊTRE POP-UP : CALENDRIER INTERACTIF ---
+# Variable d'état pour empêcher la fenêtre de se fermer
+if 'modal_ouvert' not in st.session_state:
+    st.session_state.modal_ouvert = None
+
+# --- FENÊTRE POP-UP (SÉCURISÉE CONTRE LA FERMETURE) ---
 @st.dialog("Saisie des Desiderata", width="large")
 def modal_desiderata(name):
     st.write(f"### 👤 Agent : **{name}**")
     temp_key = f"temp_{name}"
+    last_sel_key = f"last_sel_{name}"
+    
     if temp_key not in st.session_state:
         st.session_state[temp_key] = st.session_state.merms_data[name]["absences"].copy()
 
+    # Cadrage strict du calendrier sur la période demandée
+    str_debut = st.session_state.d_start.strftime("%Y-%m-%d")
+    str_fin = (st.session_state.d_end + timedelta(days=1)).strftime("%Y-%m-%d") # +1 car exclusif
+
     cal_options = {
-        "headerToolbar": {"left": "prev,next today", "center": "title", "right": "dayGridMonth"},
+        "initialDate": str_debut, # Ouvre sur le mois du début de période
+        "validRange": {"start": str_debut, "end": str_fin}, # Bloque les clics hors période
+        "headerToolbar": {"left": "prev,next", "center": "title", "right": ""},
         "selectable": True, "locale": "fr", "firstDay": 1, "height": "450px"
     }
     
     events = [{"title": "ABSENT", "start": d, "end": d, "color": "#DC2626"} for d in st.session_state[temp_key]]
     res = calendar(events=events, options=cal_options, key=f"cal_{name}")
 
+    # Logique pour éviter la boucle infinie de rafraîchissement
     if "select" in res:
-        start = res["select"]["start"].split("T")[0]
-        end_raw = datetime.strptime(res["select"]["end"].split("T")[0], "%Y-%m-%d") - timedelta(days=1)
-        new_days = pd.date_range(start, end_raw.strftime("%Y-%m-%d")).strftime("%Y-%m-%d").tolist()
-        for d in new_days:
-            if d not in st.session_state[temp_key]: st.session_state[temp_key].append(d)
-        st.rerun()
+        current_sel = str(res["select"])
+        if current_sel != st.session_state.get(last_sel_key):
+            st.session_state[last_sel_key] = current_sel
+            start = res["select"]["start"].split("T")[0]
+            end_raw = datetime.strptime(res["select"]["end"].split("T")[0], "%Y-%m-%d") - timedelta(days=1)
+            new_days = pd.date_range(start, end_raw.strftime("%Y-%m-%d")).strftime("%Y-%m-%d").tolist()
+            
+            for d in new_days:
+                if d not in st.session_state[temp_key]: 
+                    st.session_state[temp_key].append(d)
+            st.rerun() # Rafraîchit l'affichage, mais ne fermera plus la fenêtre grâce au session_state
 
     col_a, col_b = st.columns(2)
     with col_a:
         if st.button("🗑️ Effacer toutes mes saisies", use_container_width=True):
             st.session_state[temp_key] = []
+            st.session_state[last_sel_key] = None
             st.rerun()
     with col_b:
         v_pref = st.toggle("Coupler le vendredi au WE", value=st.session_state.merms_data[name]["pref_vendredi"])
@@ -116,19 +125,21 @@ def modal_desiderata(name):
         st.session_state.merms_data[name]["pref_vendredi"] = v_pref
         del st.session_state[temp_key]
         sauvegarder_donnees(st.session_state.merms_data)
+        st.session_state.modal_ouvert = None # Autorise la fermeture
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- MOTEUR ALGORITHMIQUE AVANCÉ (DOUBLE ÉQUITÉ) ---
+# --- MOTEUR ALGORITHMIQUE AVANCÉ ---
 def generer_planning(debut, fin):
+    # Correction de l'erreur Timestamp
     debut = pd.Timestamp(debut)
     fin = pd.Timestamp(fin)
+    
     fr_holidays = holidays.France(years=[debut.year, fin.year])
     jours = pd.date_range(debut, fin)
     
     planning = {d: {"L1": "⚠️ À POURVOIR", "L2": "⚠️ À POURVOIR"} for d in jours}
     
-    # Copies des scores pour simulation
     scores = {m: v['score_cumule'] for m, v in st.session_state.merms_data.items()}
     scores_we = {m: v['score_we'] for m, v in st.session_state.merms_data.items()}
     assigned_dates = {m: set() for m in st.session_state.merms_data.keys()}
@@ -136,9 +147,9 @@ def generer_planning(debut, fin):
     def est_dispo(m, dates_list):
         return not any(dt.strftime("%Y-%m-%d") in st.session_state.merms_data[m]["absences"] for dt in dates_list)
 
-    # 1. PASSE DES WEEK-ENDS (Priorité stricte à l'équité des WE)
+    # 1. PASSE DES WEEK-ENDS
     for d in jours:
-        if d.weekday() == 5: # Samedi
+        if d.weekday() == 5: 
             d_sun = d + timedelta(days=1)
             d_fri = d - timedelta(days=1)
             we_days = [d]
@@ -155,11 +166,10 @@ def generer_planning(debut, fin):
                         if not est_dispo(m, [d_fri]) or planning[d_fri][ligne] != "⚠️ À POURVOIR": continue 
                     candidats.append(m)
                 
-                # SÉLECTION : On prend celui qui a fait le MOINS de WE. En cas d'égalité, celui qui a le moins de points totaux.
                 choix = min(candidats, key=lambda x: (scores_we[x], scores[x])) if candidats else None
                 
                 if choix:
-                    scores_we[choix] += 1 # 1 WE de plus au compteur
+                    scores_we[choix] += 1 
                     for wd in we_days:
                         planning[wd][ligne] = choix
                         assigned_dates[choix].add(wd)
@@ -170,7 +180,7 @@ def generer_planning(debut, fin):
                         assigned_dates[choix].add(d_fri)
                         scores[choix] += 1
                         
-    # 2. PASSE DE LA SEMAINE (Règles métiers classiques)
+    # 2. PASSE DE LA SEMAINE 
     for d in jours:
         for ligne in ["L1", "L2"]:
             if planning[d][ligne] != "⚠️ À POURVOIR": continue
@@ -181,15 +191,12 @@ def generer_planning(debut, fin):
                 if ligne == "L2" and planning[d]["L1"] == m: continue
                 if not est_dispo(m, [d]): continue
                 
-                if m != "Talbaut V.": # Exception
-                    if (d - timedelta(days=1)) in assigned_dates[m] or (d + timedelta(days=1)) in assigned_dates[m]:
-                        continue # Pas de consécutif
+                if m != "Talbaut V.":
+                    if (d - timedelta(days=1)) in assigned_dates[m] or (d + timedelta(days=1)) in assigned_dates[m]: continue
                     week_num = d.isocalendar()[1]
                     jours_semaine = [ad for ad in assigned_dates[m] if ad.isocalendar()[1] == week_num]
-                    if any(ad.weekday() >= 5 for ad in jours_semaine):
-                        continue # Déjà un WE, pas d'astreinte
-                    elif len(jours_semaine) >= 2:
-                        continue # Max 2 en semaine
+                    if any(ad.weekday() >= 5 for ad in jours_semaine): continue 
+                    elif len(jours_semaine) >= 2: continue 
                             
                 candidats.append(m)
                 
@@ -199,7 +206,6 @@ def generer_planning(debut, fin):
                 assigned_dates[choix].add(d)
                 scores[choix] += 3 if (d.weekday() >= 5 or d in fr_holidays) else 1
 
-    # Formatage de la donnée
     resultat = []
     for d in jours:
         resultat.append({
@@ -212,7 +218,7 @@ def generer_planning(debut, fin):
         })
     return pd.DataFrame(resultat), scores, scores_we
 
-# --- EXPORT EXCEL : SÉPARÉ AVEC COLONNE MODIFICATION ---
+# --- EXPORT EXCEL ---
 def generer_excel_liste(df_planning, dict_scores, dict_scores_we):
     output = io.BytesIO()
     wb = Workbook()
@@ -228,23 +234,19 @@ def generer_excel_liste(df_planning, dict_scores, dict_scores_we):
     for (annee, mois), group in df_planning.groupby(['Annee', 'MoisNum']):
         nom_mois = MOIS_FR[mois]
         
-        # --- ONGLET LIGNE 1 ---
         ws_l1 = wb.create_sheet(title=f"L1 {nom_mois} {annee}")
         en_tetes = ["Date", "Jour", "Astreinte Prévue (L1)", "Modification / Remplaçant", "Motif / Commentaire"]
         ws_l1.append(en_tetes)
         
-        # --- ONGLET LIGNE 2 ---
         ws_l2 = wb.create_sheet(title=f"L2 {nom_mois} {annee}")
         en_tetes_l2 = ["Date", "Jour", "Astreinte Prévue (L2)", "Modification / Remplaçant", "Motif / Commentaire"]
         ws_l2.append(en_tetes_l2)
         
-        # Remplissage
         for _, row in group.iterrows():
             d_str, j_str = row['Date'], row['Jour']
             ws_l1.append([d_str, j_str, row['Ligne 1'], "", ""])
             ws_l2.append([d_str, j_str, row['Ligne 2'], "", ""])
 
-        # Design des colonnes pour les deux feuilles
         for ws in [ws_l1, ws_l2]:
             for col_num in range(1, 6):
                 cell = ws.cell(row=1, column=col_num)
@@ -254,17 +256,14 @@ def generer_excel_liste(df_planning, dict_scores, dict_scores_we):
             ws.column_dimensions['A'].width = 12
             ws.column_dimensions['B'].width = 12
             ws.column_dimensions['C'].width = 25
-            ws.column_dimensions['D'].width = 30 # Grande colonne pour écrire au stylo
+            ws.column_dimensions['D'].width = 30
             ws.column_dimensions['E'].width = 30
             
-            # Application des bordures sur toutes les cellules
             for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=5):
-                for cell in row:
-                    cell.border = border_thin
+                for cell in row: cell.border = border_thin
 
-    # Onglet Bilan d'équité
     ws_scores = wb.create_sheet(title="Bilan Équité")
-    ws_scores.append(["Manipulateur", "Nombre de Week-ends (Année)", "Points Globaux (Charge)"])
+    ws_scores.append(["Manipulateur", "Nombre de Week-ends", "Points Globaux"])
     for idx, m in enumerate(dict_scores.keys(), 2):
         ws_scores.cell(row=idx, column=1, value=m).border = border_thin
         ws_scores.cell(row=idx, column=2, value=dict_scores_we[m]).border = border_thin
@@ -280,6 +279,14 @@ def generer_excel_liste(df_planning, dict_scores, dict_scores_we):
 
 # --- INTERFACE PRINCIPALE ---
 st.title("🏥 Planning de Radiologie Interventionnelle")
+
+# On définit d'abord les dates pour pouvoir les utiliser dans les calendriers
+col_cfg, col_res = st.columns([1, 2.2])
+
+with col_cfg:
+    st.header("1. Période (Trimestre)")
+    st.session_state.d_start = st.date_input("Début", datetime.now())
+    st.session_state.d_end = st.date_input("Fin", datetime.now() + timedelta(days=90))
 
 with st.sidebar:
     st.header("⚙️ GESTION DE L'ÉQUIPE")
@@ -308,25 +315,25 @@ with st.sidebar:
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-col_cfg, col_res = st.columns([1, 2.2])
-
 with col_cfg:
-    st.header("1. Période (Trimestre)")
-    d_start = st.date_input("Début", datetime.now())
-    d_end = st.date_input("Fin", datetime.now() + timedelta(days=90))
-    
     st.write("---")
     st.header("2. Desiderata")
+    # Au lieu d'ouvrir directement, on sauvegarde le nom dans la session_state
     for merm in st.session_state.merms_data.keys():
         n_abs = len(st.session_state.merms_data[merm]["absences"])
         if st.button(f"👤 {merm} ({n_abs} j. posés)", key=f"btn_{merm}"):
-            modal_desiderata(merm)
+            st.session_state.modal_ouvert = merm
+            st.rerun() # On rafraîchit pour ouvrir proprement le modal
+
+# Déclenchement sécurisé du modal
+if st.session_state.modal_ouvert:
+    modal_desiderata(st.session_state.modal_ouvert)
 
 with col_res:
     st.header("3. Génération & Export")
     st.markdown('<div class="btn-generer">', unsafe_allow_html=True)
     if st.button("🚀 CALCULER LA RÉPARTITION ÉQUITABLE", use_container_width=True):
-        df_resultat, scores_finaux, scores_we_finaux = generer_planning(d_start, d_end)
+        df_resultat, scores_finaux, scores_we_finaux = generer_planning(st.session_state.d_start, st.session_state.d_end)
         st.session_state.planning_final = df_resultat
         st.session_state.scores_finaux = scores_finaux
         st.session_state.scores_we_finaux = scores_we_finaux
@@ -334,12 +341,11 @@ with col_res:
 
     if 'planning_final' in st.session_state:
         st.write("---")
-        # EXPORT EXCEL LISTE MODIFIABLE
         excel_data = generer_excel_liste(st.session_state.planning_final, st.session_state.scores_finaux, st.session_state.scores_we_finaux)
-        nom_fichier = f"Planning_RI_{d_start.strftime('%m')}-{d_end.strftime('%m_%Y')}.xlsx"
+        nom_fichier = f"Planning_RI_{st.session_state.d_start.strftime('%m')}-{st.session_state.d_end.strftime('%m_%Y')}.xlsx"
         
         st.download_button(
-            label="📥 TÉLÉCHARGEMENT EXCEL (AVEC COLONNE MODIFICATION)",
+            label="📥 TÉLÉCHARGEMENT EXCEL",
             data=excel_data,
             file_name=nom_fichier,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -349,25 +355,15 @@ with col_res:
         st.write("---")
         
         onglet_l1, onglet_l2, onglet_stats = st.tabs(["📋 PLANNING LIGNE 1", "📋 PLANNING LIGNE 2", "📈 ÉQUITÉ & POINTS"])
-        
-        with onglet_l1:
-            st.table(st.session_state.planning_final[["Date", "Jour", "Ligne 1", "Type"]])
-        with onglet_l2:
-            st.table(st.session_state.planning_final[["Date", "Jour", "Ligne 2", "Type"]])
-            
+        with onglet_l1: st.table(st.session_state.planning_final[["Date", "Jour", "Ligne 1", "Type"]])
+        with onglet_l2: st.table(st.session_state.planning_final[["Date", "Jour", "Ligne 2", "Type"]])
         with onglet_stats:
-            st.subheader("Bilan d'Équité (Double validation)")
-            st.info("La priorité est donnée à l'équité des Week-ends, puis au lissage de la charge de semaine.")
-            df_bilan = pd.DataFrame({
-                "Nombre de Week-ends": st.session_state.scores_we_finaux,
-                "Points Globaux (Charge)": st.session_state.scores_finaux
-            })
+            st.subheader("Bilan d'Équité")
+            df_bilan = pd.DataFrame({"Nombre de Week-ends": st.session_state.scores_we_finaux, "Points Globaux": st.session_state.scores_finaux})
             st.table(df_bilan)
-            
-            st.write("---")
             if st.button("💾 VALIDER CE TRIMESTRE ET SAUVEGARDER LES SCORES"):
                 for m in st.session_state.scores_finaux:
                     st.session_state.merms_data[m]['score_cumule'] = st.session_state.scores_finaux[m]
                     st.session_state.merms_data[m]['score_we'] = st.session_state.scores_we_finaux[m]
                 sauvegarder_donnees(st.session_state.merms_data)
-                st.success("✅ Base de données mise à jour ! L'algorithme se souviendra du nombre de WE réalisés par chacun.")
+                st.success("✅ Base de données mise à jour !")
