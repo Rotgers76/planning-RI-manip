@@ -13,7 +13,7 @@ from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Planning RI Pro", layout="wide", initial_sidebar_state="expanded")
 
-# --- THÈME MODERNE & ERGONOMIQUE ---
+# --- THÈME MODERNE & ERGONOMIQUE (100% BLEU - ZERO GRIS) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
@@ -23,15 +23,39 @@ st.markdown("""
         font-family: 'Inter', sans-serif;
     }
     p, span, label, div, th, td {
-        color: #333333 !important; /* Gris très foncé pour une lecture douce */
+        color: #333333 !important; 
     }
     h1, h2, h3 { 
-        color: #000000 !important; /* Noir pur pour les titres */
+        color: #000000 !important; 
     }
     
-    /* 2. FONDS EN BLEU CLAIR */
+    /* 2. FONDS EN BLEU CLAIR (Remplacement massif du gris) */
     .stApp { background-color: #F0F9FF !important; } 
     [data-testid="stSidebar"] { background-color: #E0F2FE !important; } 
+    header[data-testid="stHeader"] { background-color: #F0F9FF !important; } /* Bandeau supérieur */
+    
+    /* 3. ZONES DE SAISIE ET CALENDRIER DATE */
+    div[data-baseweb="input"] > div, div[data-baseweb="popover"] > div { 
+        background-color: #FFFFFF !important; 
+        border: 1px solid #BAE6FD !important; 
+    }
+    
+    /* 4. FENÊTRE POP-UP (DESIDERATA) ET MENUS DÉROULANTS */
+    div[role="dialog"] { 
+        background-color: #F0F9FF !important; 
+        border: 2px solid #BAE6FD !important;
+        border-radius: 12px;
+    }
+    /* Fond assombri derrière la pop-up (Bleu nuit au lieu de gris) */
+    [data-testid="stModal"] > div:first-child {
+        background-color: rgba(3, 105, 161, 0.4) !important; 
+    }
+    /* Expander "Ajouter un manipulateur" */
+    [data-testid="stExpander"] { 
+        background-color: #FFFFFF !important; 
+        border: 1px solid #BAE6FD !important; 
+        border-radius: 8px; 
+    }
     
     h1 { border-bottom: 4px solid #2563EB; padding-bottom: 10px; margin-bottom: 1rem; }
     h2, h3 { font-weight: 700; margin-top: 1.5rem; }
@@ -322,7 +346,6 @@ def generer_excel_liste(df_planning, dict_scores, dict_scores_we, dict_nbl1, dic
     font_header = Font(color="FFFFFF", bold=True)
     border_thin = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
     
-    # Remplacement de l'ancien gris par un BLEU TRÈS CLAIR pour les week-ends/fériés dans Excel
     fill_we_ferie = PatternFill(start_color="DBEAFE", end_color="DBEAFE", fill_type="solid")
 
     df_planning['Annee'] = df_planning['DateObj'].dt.year
