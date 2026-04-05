@@ -10,80 +10,10 @@ import io
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
 
-# --- CONFIGURATION DE LA PAGE ---
+# ==========================================
+# 1. CONFIGURATION ET CONSTANTES
+# ==========================================
 st.set_page_config(page_title="Planning RI Pro", layout="wide", initial_sidebar_state="expanded")
-
-# --- THÈME MODERNE & ERGONOMIQUE (100% BLEU - ZERO GRIS) ---
-st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
-    
-    /* 1. FORCER LE TEXTE EN NOIR/GRIS FONCÉ PARTOUT */
-    html, body, [class*="css"], .stApp, [data-testid="stSidebar"] { 
-        font-family: 'Inter', sans-serif;
-    }
-    p, span, label, div, th, td {
-        color: #333333 !important; 
-    }
-    h1, h2, h3 { 
-        color: #000000 !important; 
-    }
-    
-    /* 2. FONDS EN BLEU CLAIR (Remplacement massif du gris) */
-    .stApp { background-color: #F0F9FF !important; } 
-    [data-testid="stSidebar"] { background-color: #E0F2FE !important; } 
-    header[data-testid="stHeader"] { background-color: #F0F9FF !important; } /* Bandeau supérieur */
-    
-    /* 3. ZONES DE SAISIE ET CALENDRIER DATE */
-    div[data-baseweb="input"] > div, div[data-baseweb="popover"] > div { 
-        background-color: #FFFFFF !important; 
-        border: 1px solid #BAE6FD !important; 
-    }
-    
-    /* 4. FENÊTRE POP-UP (DESIDERATA) ET MENUS DÉROULANTS */
-    div[role="dialog"] { 
-        background-color: #F0F9FF !important; 
-        border: 2px solid #BAE6FD !important;
-        border-radius: 12px;
-    }
-    /* Fond assombri derrière la pop-up (Bleu nuit au lieu de gris) */
-    [data-testid="stModal"] > div:first-child {
-        background-color: rgba(3, 105, 161, 0.4) !important; 
-    }
-    /* Expander "Ajouter un manipulateur" */
-    [data-testid="stExpander"] { 
-        background-color: #FFFFFF !important; 
-        border: 1px solid #BAE6FD !important; 
-        border-radius: 8px; 
-    }
-    
-    h1 { border-bottom: 4px solid #2563EB; padding-bottom: 10px; margin-bottom: 1rem; }
-    h2, h3 { font-weight: 700; margin-top: 1.5rem; }
-    
-    /* Cartes et Boutons normaux */
-    .stButton>button { width: 100%; border-radius: 8px; border: 1px solid #BAE6FD; background-color: #FFFFFF !important; padding: 0.6rem; transition: all 0.2s; text-align: left; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-    .stButton>button:hover { border-color: #2563EB; background-color: #DBEAFE !important; transform: translateY(-1px); box-shadow: 0 4px 6px rgba(37, 99, 235, 0.1); }
-    .stButton>button p { color: #333333 !important; }
-    .stButton>button:hover p { color: #000000 !important; }
-    
-    /* Boutons d'action (Texte en blanc) */
-    .btn-valider button, .btn-valider button span, .btn-valider button p { background-color: #059669 !important; color: white !important; font-weight: 800; }
-    .btn-generer button, .btn-generer button span, .btn-generer button p { background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%) !important; color: white !important; font-weight: 800; padding: 1rem !important; }
-    .btn-supprimer button, .btn-supprimer button span, .btn-supprimer button p { background-color: #DC2626 !important; color: white !important; padding: 2px 10px !important; }
-    .btn-indispo button, .btn-indispo button span, .btn-indispo button p { background-color: #DC2626 !important; color: white !important; font-weight: bold; }
-    .btn-dispo button, .btn-dispo button span, .btn-dispo button p { background-color: #16A34A !important; color: white !important; font-weight: bold; }
-    .btn-clear button, .btn-clear button span, .btn-clear button p { background-color: #0284C7 !important; color: white !important; font-weight: bold; }
-
-    /* Onglets et Tableaux */
-    .stTabs [data-baseweb="tab-list"] { gap: 10px; background-color: #BAE6FD !important; padding: 6px; border-radius: 10px; }
-    .stTabs [data-baseweb="tab"] { border-radius: 6px; background-color: transparent; font-weight: 600; }
-    .stTabs [data-baseweb="tab"] p { color: #555555 !important; }
-    .stTabs [aria-selected="true"] { background-color: white !important; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .stTabs [aria-selected="true"] p { color: #000000 !important; font-weight: bold; }
-    
-    [data-testid="stTable"] { background-color: white !important; border-radius: 8px; overflow: hidden; border: 1px solid #BAE6FD; }
-    </style>
-    """, unsafe_allow_html=True)
 
 JOURS_FR = {"Monday": "Lundi", "Tuesday": "Mardi", "Wednesday": "Mercredi",
             "Thursday": "Jeudi", "Friday": "Vendredi", "Saturday": "Samedi", "Sunday": "Dimanche"}
@@ -92,14 +22,65 @@ MOIS_FR = {1: "Janvier", 2: "Février", 3: "Mars", 4: "Avril", 5: "Mai", 6: "Jui
 
 FICHIER_SAUVEGARDE = "equipe_ri.json"
 
+# ==========================================
+# 2. THÈME VISUEL (CSS)
+# ==========================================
+st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+    
+    /* Typographie et Couleurs globales */
+    html, body, [class*="css"], .stApp, [data-testid="stSidebar"] { font-family: 'Inter', sans-serif; }
+    p, span, label, div, th, td, input { color: #333333 !important; }
+    h1, h2, h3 { color: #000000 !important; }
+    svg { fill: #333333 !important; }
+    
+    /* Fonds Bleu Clair */
+    .stApp, header[data-testid="stHeader"], div[role="dialog"] { background-color: #F0F9FF !important; } 
+    [data-testid="stSidebar"] { background-color: #E0F2FE !important; } 
+    [data-testid="stModal"] > div:first-child { background-color: rgba(3, 105, 161, 0.5) !important; }
+    
+    /* Composants UI */
+    div[data-baseweb="input"] > div, div[data-baseweb="popover"] > div, [data-testid="stExpander"] { 
+        background-color: #FFFFFF !important; border: 1px solid #BAE6FD !important; border-radius: 8px; 
+    }
+    div[role="dialog"] { border: 2px solid #BAE6FD !important; border-radius: 12px; }
+    h1 { border-bottom: 4px solid #2563EB; padding-bottom: 10px; margin-bottom: 1rem; }
+    
+    /* Boutons standards */
+    .stButton>button { border-radius: 8px; border: 1px solid #BAE6FD; background-color: #FFFFFF !important; transition: all 0.2s; font-weight: 600; }
+    .stButton>button:hover { border-color: #2563EB; background-color: #DBEAFE !important; transform: translateY(-1px); }
+    
+    /* Protection des boutons colorés (Texte/Icone en blanc) */
+    .btn-valider button *, .btn-generer button *, .btn-supprimer button *, .btn-indispo button *, .btn-dispo button *, .btn-clear button * { color: white !important; fill: white !important; }
+    .btn-valider button { background-color: #059669 !important; }
+    .btn-generer button { background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%) !important; padding: 1rem !important; }
+    .btn-supprimer button { background-color: #DC2626 !important; padding: 2px 10px !important; }
+    .btn-indispo button { background-color: #DC2626 !important; }
+    .btn-dispo button { background-color: #16A34A !important; }
+    .btn-clear button { background-color: #0284C7 !important; }
+
+    /* Onglets & Tableaux */
+    .stTabs [data-baseweb="tab-list"] { background-color: #BAE6FD !important; padding: 6px; border-radius: 10px; }
+    .stTabs [aria-selected="true"] { background-color: white !important; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .stTabs [aria-selected="true"] p { color: #000000 !important; font-weight: bold; }
+    [data-testid="stTable"] { background-color: white !important; border-radius: 8px; border: 1px solid #BAE6FD; }
+    </style>
+""", unsafe_allow_html=True)
+
+# ==========================================
+# 3. GESTION DES DONNÉES (JSON)
+# ==========================================
 def charger_donnees():
     if os.path.exists(FICHIER_SAUVEGARDE):
         with open(FICHIER_SAUVEGARDE, "r", encoding="utf-8") as f:
             data = json.load(f)
-            for m in data:
-                if "score_we" not in data[m]: data[m]["score_we"] = 0
-                if "nb_l1" not in data[m]: data[m]["nb_l1"] = 0
-                if "nb_l2" not in data[m]: data[m]["nb_l2"] = 0
+            # Sécurité : Injection des clés manquantes si mise à jour du code
+            for m in data.values():
+                m.setdefault("score_we", 0)
+                m.setdefault("nb_l1", 0)
+                m.setdefault("nb_l2", 0)
+                m.setdefault("lignes", [1, 2])
             return data
     return None
 
@@ -107,396 +88,320 @@ def sauvegarder_donnees(data):
     with open(FICHIER_SAUVEGARDE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
 
-if 'merms_data' not in st.session_state:
-    donnees_sauvees = charger_donnees()
-    if donnees_sauvees:
-        st.session_state.merms_data = donnees_sauvees
-    else:
-        noms = ["Lechevin L.", "Abdelaoui F.", "Laurin M.", "Cotton L.", "Bacquet V.", 
-                "Leroux C.", "Brasseur O.", "Dupierris P.A.", "Talbaut V.", "Michel L.", "Dhondt F.", "Geffroy C."]
-        st.session_state.merms_data = {
-            name: {
-                "lignes": [2] if name in ["Dhondt F.", "Geffroy C."] else [1, 2],
-                "score_cumule": 0, "score_we": 0, 
-                "nb_l1": 0, "nb_l2": 0,
-                "pref_vendredi": False, "absences": []
-            } for name in noms
-        }
-        sauvegarder_donnees(st.session_state.merms_data)
+def initialiser_etat():
+    if 'merms_data' not in st.session_state:
+        donnees = charger_donnees()
+        if not donnees:
+            noms = ["Lechevin L.", "Abdelaoui F.", "Laurin M.", "Cotton L.", "Bacquet V.", 
+                    "Leroux C.", "Brasseur O.", "Dupierris P.A.", "Talbaut V.", "Michel L.", "Dhondt F.", "Geffroy C."]
+            donnees = {
+                name: {"lignes": [2] if name in ["Dhondt F.", "Geffroy C."] else [1, 2],
+                       "score_cumule": 0, "score_we": 0, "nb_l1": 0, "nb_l2": 0,
+                       "pref_vendredi": False, "absences": []} for name in noms
+            }
+            sauvegarder_donnees(donnees)
+        st.session_state.merms_data = donnees
+    
+    if 'modal_ouvert' not in st.session_state:
+        st.session_state.modal_ouvert = None
 
-if 'modal_ouvert' not in st.session_state:
-    st.session_state.modal_ouvert = None
+initialiser_etat()
 
-# --- FENÊTRE POP-UP DESIDERATA ---
+# ==========================================
+# 4. COMPOSANT CALENDRIER (DESIDERATA)
+# ==========================================
 @st.dialog("Saisie des Desiderata", width="large")
 def modal_desiderata(name):
     st.write(f"### 👤 Agent : **{name}**")
-    st.info("1️⃣ Cliquez ou glissez pour sélectionner un ou plusieurs jours (ils s'afficheront en bleu).\n2️⃣ Choisissez ensuite leur statut en bas.")
+    st.info("1️⃣ Sélectionnez les jours en cliquant/glissant (ils s'afficheront en bleu).\n2️⃣ Appliquez leur statut avec les boutons ci-dessous.")
     
-    temp_abs_key = f"temp_abs_{name}"
-    temp_sel_key = f"temp_sel_{name}"
-    last_sel_key = f"last_sel_{name}"
+    t_abs, t_sel, l_sel = f"abs_{name}", f"sel_{name}", f"lsel_{name}"
     
-    if temp_abs_key not in st.session_state:
-        st.session_state[temp_abs_key] = st.session_state.merms_data[name]["absences"].copy()
-    if temp_sel_key not in st.session_state:
-        st.session_state[temp_sel_key] = set() 
+    if t_abs not in st.session_state: st.session_state[t_abs] = st.session_state.merms_data[name]["absences"].copy()
+    if t_sel not in st.session_state: st.session_state[t_sel] = set() 
 
-    str_debut = st.session_state.d_start.strftime("%Y-%m-%d")
-    str_fin = (st.session_state.d_end + timedelta(days=1)).strftime("%Y-%m-%d")
+    deb_str, fin_str = st.session_state.d_start.strftime("%Y-%m-%d"), (st.session_state.d_end + timedelta(days=1)).strftime("%Y-%m-%d")
 
     cal_options = {
-        "timeZone": "UTC", 
-        "initialDate": str_debut, 
-        "validRange": {"start": str_debut, "end": str_fin},
+        "timeZone": "UTC", "initialDate": deb_str, "validRange": {"start": deb_str, "end": fin_str},
         "headerToolbar": {"left": "prev,next", "center": "title", "right": ""},
-        "selectable": True, "locale": "fr", "firstDay": 1, "height": "450px",
-        "unselectAuto": False 
+        "selectable": True, "locale": "fr", "firstDay": 1, "height": "450px", "unselectAuto": False 
     }
     
-    events = []
-    for d in st.session_state[temp_abs_key]:
-        if d not in st.session_state[temp_sel_key]:
-            events.append({"title": "INDISPO", "start": d, "end": d, "color": "#DC2626"})
-            
-    for d in st.session_state[temp_sel_key]:
-        events.append({"title": "SÉLECTION", "start": d, "end": d, "color": "#3B82F6"}) 
+    # CSS injecté pour intégrer le calendrier au thème
+    css_cal = """
+        .fc { background-color: #F0F9FF !important; color: #333333 !important; font-family: 'Inter', sans-serif; }
+        .fc-theme-standard th, .fc-theme-standard td { border-color: #BAE6FD !important; }
+        .fc-col-header-cell { background-color: #E0F2FE !important; }
+        .fc-button { background-color: #0284C7 !important; border-color: #0284C7 !important; color: white !important; }
+    """
+    
+    events = [{"title": "INDISPO", "start": d, "end": d, "color": "#DC2626"} for d in st.session_state[t_abs] if d not in st.session_state[t_sel]] + \
+             [{"title": "SÉLECTION", "start": d, "end": d, "color": "#3B82F6"} for d in st.session_state[t_sel]]
 
-    res = calendar(events=events, options=cal_options, key=f"cal_{name}")
+    res = calendar(events=events, options=cal_options, custom_css=css_cal, key=f"cal_{name}")
 
-    if "select" in res:
-        current_sel = str(res["select"])
-        if current_sel != st.session_state.get(last_sel_key):
-            st.session_state[last_sel_key] = current_sel
-            
-            start_str = res["select"].get("startStr", res["select"]["start"].split("T")[0])
-            end_str = res["select"].get("endStr", res["select"]["end"].split("T")[0])
-            
-            start_dt = datetime.strptime(start_str.split("T")[0], "%Y-%m-%d")
-            end_dt = datetime.strptime(end_str.split("T")[0], "%Y-%m-%d")
-            
-            if end_dt > start_dt:
-                end_dt -= timedelta(days=1)
-                
-            new_days = pd.date_range(start_dt, end_dt).strftime("%Y-%m-%d").tolist()
-            
-            for d in new_days:
-                st.session_state[temp_sel_key].add(d)
-            st.rerun()
+    # Capture de sélection (Simplifiée avec Pandas)
+    if "select" in res and str(res["select"]) != st.session_state.get(l_sel):
+        st.session_state[l_sel] = str(res["select"])
+        s_date = res["select"].get("startStr", res["select"]["start"])[:10]
+        e_date = res["select"].get("endStr", res["select"]["end"])[:10]
+        
+        # Le calendrier inclut le jour de fin (exclusif), on retire 1 jour
+        dates_range = pd.date_range(s_date, pd.to_datetime(e_date) - pd.Timedelta(days=1)).strftime("%Y-%m-%d").tolist()
+        st.session_state[t_sel].update(dates_range)
+        st.rerun()
 
-    col_act1, col_act2, col_act3 = st.columns(3)
-    with col_act1:
+    c1, c2, c3 = st.columns(3)
+    with c1:
         st.markdown('<div class="btn-indispo">', unsafe_allow_html=True)
         if st.button("🔴 Rendre Indisponible", use_container_width=True):
-            for d in st.session_state[temp_sel_key]:
-                if d not in st.session_state[temp_abs_key]:
-                    st.session_state[temp_abs_key].append(d)
-            st.session_state[temp_sel_key].clear() 
-            st.rerun()
+            st.session_state[t_abs] = list(set(st.session_state[t_abs] + list(st.session_state[t_sel])))
+            st.session_state[t_sel].clear(); st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
-            
-    with col_act2:
+    with c2:
         st.markdown('<div class="btn-dispo">', unsafe_allow_html=True)
         if st.button("🟢 Rendre Disponible", use_container_width=True):
-            for d in st.session_state[temp_sel_key]:
-                if d in st.session_state[temp_abs_key]:
-                    st.session_state[temp_abs_key].remove(d)
-            st.session_state[temp_sel_key].clear() 
-            st.rerun()
+            st.session_state[t_abs] = [d for d in st.session_state[t_abs] if d not in st.session_state[t_sel]]
+            st.session_state[t_sel].clear(); st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
-        
-    with col_act3:
+    with c3:
         st.markdown('<div class="btn-clear">', unsafe_allow_html=True)
         if st.button("⚪ Vider la sélection", use_container_width=True):
-            st.session_state[temp_sel_key].clear()
-            st.rerun()
+            st.session_state[t_sel].clear(); st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
     st.write("---")
     v_pref = st.toggle("Coupler le vendredi au WE (lorsque je suis d'astreinte)", value=st.session_state.merms_data[name]["pref_vendredi"])
-
     st.write("---")
+    
     st.markdown('<div class="btn-valider">', unsafe_allow_html=True)
     if st.button("✅ CONFIRMER ET ENREGISTRER MES CHOIX", use_container_width=True):
-        st.session_state.merms_data[name]["absences"] = st.session_state[temp_abs_key]
+        st.session_state.merms_data[name]["absences"] = st.session_state[t_abs]
         st.session_state.merms_data[name]["pref_vendredi"] = v_pref
-        del st.session_state[temp_abs_key]
-        del st.session_state[temp_sel_key]
+        del st.session_state[t_abs], st.session_state[t_sel]
         sauvegarder_donnees(st.session_state.merms_data)
         st.session_state.modal_ouvert = None
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- MOTEUR ALGORITHMIQUE AVEC MULTI-ÉQUITÉ ---
+# ==========================================
+# 5. MOTEUR ALGORITHMIQUE (ÉQUITÉ & RÈGLES)
+# ==========================================
 def generer_planning(debut, fin):
-    debut = pd.Timestamp(debut)
-    fin = pd.Timestamp(fin)
-    fr_holidays = holidays.France(years=[debut.year, fin.year])
+    debut, fin = pd.Timestamp(debut), pd.Timestamp(fin)
+    fr_holidays = holidays.France(years=range(debut.year, fin.year + 1))
     jours = pd.date_range(debut, fin)
     
     planning = {d: {"L1": "⚠️ À POURVOIR", "L2": "⚠️ À POURVOIR"} for d in jours}
+    assigned_dates = {m: set() for m in st.session_state.merms_data}
     
-    # Récupération de tous les compteurs
-    scores = {m: v['score_cumule'] for m, v in st.session_state.merms_data.items()}
-    scores_we = {m: v['score_we'] for m, v in st.session_state.merms_data.items()}
-    nb_l1 = {m: v.get('nb_l1', 0) for m, v in st.session_state.merms_data.items()}
-    nb_l2 = {m: v.get('nb_l2', 0) for m, v in st.session_state.merms_data.items()}
-    assigned_dates = {m: set() for m in st.session_state.merms_data.keys()}
+    # Copies de travail des compteurs
+    sc, sc_we = {m: v['score_cumule'] for m, v in st.session_state.merms_data.items()}, {m: v['score_we'] for m, v in st.session_state.merms_data.items()}
+    n_l1, n_l2 = {m: v['nb_l1'] for m, v in st.session_state.merms_data.items()}, {m: v['nb_l2'] for m, v in st.session_state.merms_data.items()}
     
-    def total_ast(m): return nb_l1[m] + nb_l2[m]
-    
-    def est_dispo(m, dates_list):
-        return not any(dt.strftime("%Y-%m-%d") in st.session_state.merms_data[m]["absences"] for dt in dates_list)
+    def est_dispo(m, dt_list): return not any(d.strftime("%Y-%m-%d") in st.session_state.merms_data[m]["absences"] for d in dt_list)
+    def is_we_ferie(d): return d.weekday() >= 5 or d.date() in fr_holidays
 
-    # 1. PASSE DES WEEK-ENDS
+    # --- PASSE 1 : WEEK-ENDS ---
     for d in jours:
-        if d.weekday() == 5: 
-            d_sun = d + timedelta(days=1)
+        if d.weekday() == 5: # Samedi
+            we_days = [d, d + timedelta(days=1)] if (d + timedelta(days=1)) <= fin else [d]
             d_fri = d - timedelta(days=1)
-            we_days = [d]
-            if d_sun <= fin: we_days.append(d_sun)
             
             for ligne in ["L1", "L2"]:
                 candidats = []
                 for m, v in st.session_state.merms_data.items():
-                    if (ligne == "L1" and 1 not in v["lignes"]) or (ligne == "L2" and 2 not in v["lignes"]): continue
-                    if ligne == "L2" and planning[d]["L1"] == m: continue
+                    if int(ligne[1]) not in v["lignes"] or (ligne == "L2" and planning[d]["L1"] == m): continue
                     if not est_dispo(m, we_days): continue
-                    if v["pref_vendredi"] and d_fri >= debut:
-                        if not est_dispo(m, [d_fri]) or planning[d_fri][ligne] != "⚠️ À POURVOIR": continue 
+                    if v["pref_vendredi"] and d_fri >= debut and (not est_dispo(m, [d_fri]) or planning[d_fri][ligne] != "⚠️ À POURVOIR"): continue 
                     candidats.append(m)
                 
-                # Tri Complexe : 1. Nbr WE -> 2. Points totaux -> 3. Nbr d'astreintes totales -> 4. Equilibre L1/L2
-                if ligne == "L1":
-                    choix = min(candidats, key=lambda x: (scores_we[x], scores[x], total_ast(x), nb_l1[x])) if candidats else None
-                else:
-                    choix = min(candidats, key=lambda x: (scores_we[x], scores[x], total_ast(x), nb_l2[x])) if candidats else None
-                
-                if choix:
-                    scores_we[choix] += 1 
-                    for wd in we_days:
-                        planning[wd][ligne] = choix
-                        assigned_dates[choix].add(wd)
-                        scores[choix] += 3
-                        if ligne == "L1": nb_l1[choix] += 1
-                        else: nb_l2[choix] += 1
+                if candidats:
+                    # Tri : 1. Nb WE | 2. Points | 3. Total Astreintes | 4. Ligne spécifique
+                    choix = min(candidats, key=lambda x: (sc_we[x], sc[x], n_l1[x] + n_l2[x], n_l1[x] if ligne == "L1" else n_l2[x]))
+                    sc_we[choix] += 1 
                     
-                    if st.session_state.merms_data[choix]["pref_vendredi"] and d_fri >= debut:
-                        planning[d_fri][ligne] = choix
-                        assigned_dates[choix].add(d_fri)
-                        scores[choix] += 1
-                        if ligne == "L1": nb_l1[choix] += 1
-                        else: nb_l2[choix] += 1
+                    jours_assign = we_days + ([d_fri] if (st.session_state.merms_data[choix]["pref_vendredi"] and d_fri >= debut) else [])
                         
-    # 2. PASSE DE LA SEMAINE
+                    for ja in jours_assign:
+                        planning[ja][ligne] = choix
+                        assigned_dates[choix].add(ja)
+                        sc[choix] += 3 if is_we_ferie(ja) else 1
+                        if ligne == "L1": n_l1[choix] += 1
+                        else: n_l2[choix] += 1
+                        
+    # --- PASSE 2 : SEMAINE ---
     for d in jours:
         for ligne in ["L1", "L2"]:
             if planning[d][ligne] != "⚠️ À POURVOIR": continue
             
             candidats = []
             for m, v in st.session_state.merms_data.items():
-                if (ligne == "L1" and 1 not in v["lignes"]) or (ligne == "L2" and 2 not in v["lignes"]): continue
-                if ligne == "L2" and planning[d]["L1"] == m: continue
-                if not est_dispo(m, [d]): continue
+                if int(ligne[1]) not in v["lignes"] or (ligne == "L2" and planning[d]["L1"] == m) or not est_dispo(m, [d]): continue
                 
-                # Règles de sécurité et quotas
+                # Règle repos consécutif
                 if (d - timedelta(days=1)) in assigned_dates[m] or (d + timedelta(days=1)) in assigned_dates[m]: continue
-                week_num = d.isocalendar()[1]
-                jours_semaine_ad = [ad for ad in assigned_dates[m] if ad.isocalendar()[1] == week_num]
-                a_un_we = any(ad.weekday() >= 5 for ad in jours_semaine_ad)
-                jours_en_semaine = [ad for ad in jours_semaine_ad if ad.weekday() < 5]
                 
-                if a_un_we and len(jours_en_semaine) >= 1: continue 
-                elif not a_un_we and len(jours_en_semaine) >= 2: continue 
-                            
+                # Quotas hebdomadaires
+                jours_sem = [ad for ad in assigned_dates[m] if ad.isocalendar()[1] == d.isocalendar()[1]]
+                a_un_we = any(ad.weekday() >= 5 for ad in jours_sem)
+                jours_hors_we = [ad for ad in jours_sem if ad.weekday() < 5]
+                
+                if (a_un_we and len(jours_hors_we) >= 1) or (not a_un_we and len(jours_hors_we) >= 2): continue 
                 candidats.append(m)
                 
-            # Tri Complexe : 1. Points totaux -> 2. Nbr d'astreintes totales -> 3. Equilibre L1/L2
-            if ligne == "L1":
-                choix = min(candidats, key=lambda x: (scores[x], total_ast(x), nb_l1[x])) if candidats else "⚠️ À POURVOIR"
-            else:
-                choix = min(candidats, key=lambda x: (scores[x], total_ast(x), nb_l2[x])) if candidats else "⚠️ À POURVOIR"
-                
-            planning[d][ligne] = choix
-            if choix != "⚠️ À POURVOIR":
+            if candidats:
+                choix = min(candidats, key=lambda x: (sc[x], n_l1[x] + n_l2[x], n_l1[x] if ligne == "L1" else n_l2[x]))
+                planning[d][ligne] = choix
                 assigned_dates[choix].add(d)
-                scores[choix] += 3 if (d.weekday() >= 5 or d in fr_holidays) else 1
-                if ligne == "L1": nb_l1[choix] += 1
-                else: nb_l2[choix] += 1
+                sc[choix] += 3 if is_we_ferie(d) else 1
+                if ligne == "L1": n_l1[choix] += 1
+                else: n_l2[choix] += 1
 
-    resultat = []
-    for d in jours:
-        resultat.append({
-            "Date": d.strftime("%d/%m/%Y"),
-            "DateObj": d,
-            "Jour": JOURS_FR[d.strftime("%A")],
-            "Ligne 1": planning[d]["L1"],
-            "Ligne 2": planning[d]["L2"],
-            "Type": "FÉRIÉ/WE" if (d.weekday() >= 5 or d in fr_holidays) else "SEMAINE"
-        })
-    return pd.DataFrame(resultat), scores, scores_we, nb_l1, nb_l2
+    # Formatage final Pandas
+    res_df = pd.DataFrame([{
+        "Date": d.strftime("%d/%m/%Y"), "DateObj": d, "Jour": JOURS_FR[d.strftime("%A")],
+        "Ligne 1": planning[d]["L1"], "Ligne 2": planning[d]["L2"],
+        "Type": "FÉRIÉ/WE" if is_we_ferie(d) else "SEMAINE"
+    } for d in jours])
+                 
+    return res_df, sc, sc_we, n_l1, n_l2
 
-# --- EXPORT EXCEL ---
-def generer_excel_liste(df_planning, dict_scores, dict_scores_we, dict_nbl1, dict_nbl2):
+# ==========================================
+# 6. GÉNÉRATION EXCEL
+# ==========================================
+def generer_excel_liste(df_planning, d_sc, d_sc_we, d_nbl1, d_nbl2):
     output = io.BytesIO()
     wb = Workbook()
     wb.remove(wb.active)
 
-    fill_header = PatternFill(start_color="1E40AF", end_color="1E40AF", fill_type="solid")
-    font_header = Font(color="FFFFFF", bold=True)
-    border_thin = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+    f_head, font_head = PatternFill(start_color="1E40AF", end_color="1E40AF", fill_type="solid"), Font(color="FFFFFF", bold=True)
+    b_thin = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+    f_we = PatternFill(start_color="DBEAFE", end_color="DBEAFE", fill_type="solid")
+
+    for (annee, mois), group in df_planning.groupby([df_planning['DateObj'].dt.year, df_planning['DateObj'].dt.month]):
+        for l_num, ligne in enumerate(["Ligne 1", "Ligne 2"], 1):
+            ws = wb.create_sheet(title=f"L{l_num} {MOIS_FR[mois]} {annee}")
+            ws.append(["Jour", "Date", "Astreinte Prévue", "Modification / Remplaçant"])
+            
+            # Application des styles d'en-tête
+            for col in range(1, 5): 
+                ws.cell(row=1, column=col).fill = f_head
+                ws.cell(row=1, column=col).font = font_head
+                ws.cell(row=1, column=col).border = b_thin
+            ws.column_dimensions['A'].width, ws.column_dimensions['B'].width = 15, 15
+            ws.column_dimensions['C'].width, ws.column_dimensions['D'].width = 25, 40
+
+            # Remplissage des données
+            for row_idx, (_, row) in enumerate(group.iterrows(), 2):
+                ws.append([row['Jour'], row['Date'], row[ligne], ""])
+                for col in range(1, 5):
+                    c = ws.cell(row=row_idx, column=col)
+                    c.border = b_thin
+                    if row['Type'] == "FÉRIÉ/WE": c.fill = f_we
+
+    # Onglet Bilan
+    ws_bilan = wb.create_sheet(title="Bilan Équité")
+    ws_bilan.append(["Manipulateur", "Total Points", "Total Astreintes", "Total L1", "Total L2", "Nb Week-ends"])
     
-    fill_we_ferie = PatternFill(start_color="DBEAFE", end_color="DBEAFE", fill_type="solid")
-
-    df_planning['Annee'] = df_planning['DateObj'].dt.year
-    df_planning['MoisNum'] = df_planning['DateObj'].dt.month
-
-    for (annee, mois), group in df_planning.groupby(['Annee', 'MoisNum']):
-        nom_mois = MOIS_FR[mois]
-        ws_l1 = wb.create_sheet(title=f"L1 {nom_mois} {annee}")
-        ws_l2 = wb.create_sheet(title=f"L2 {nom_mois} {annee}")
-        en_tetes = ["Jour", "Date", "Astreinte Prévue", "Modification / Remplaçant"]
+    for idx, m in enumerate(d_sc.keys(), 2):
+        donnees_m = [m, d_sc[m], d_nbl1[m] + d_nbl2[m], d_nbl1[m], d_nbl2[m], d_sc_we[m]]
+        for col_idx, val in enumerate(donnees_m, 1):
+            ws_bilan.cell(row=idx, column=col_idx, value=val).border = b_thin
         
-        for ws in [ws_l1, ws_l2]:
-            ws.append(en_tetes)
-            for col_num in range(1, 5):
-                cell = ws.cell(row=1, column=col_num)
-                cell.fill = fill_header
-                cell.font = font_header
-                cell.border = border_thin
-            ws.column_dimensions['A'].width = 15
-            ws.column_dimensions['B'].width = 15
-            ws.column_dimensions['C'].width = 25
-            ws.column_dimensions['D'].width = 40
-
-        row_idx = 2
-        for _, row in group.iterrows():
-            d_str, j_str, type_jour = row['Date'], row['Jour'], row['Type']
-            ws_l1.append([j_str, d_str, row['Ligne 1'], ""])
-            ws_l2.append([j_str, d_str, row['Ligne 2'], ""])
-            for ws in [ws_l1, ws_l2]:
-                for col_num in range(1, 5):
-                    cell = ws.cell(row=row_idx, column=col_num)
-                    cell.border = border_thin
-                    if type_jour == "FÉRIÉ/WE": cell.fill = fill_we_ferie
-            row_idx += 1
-
-    ws_scores = wb.create_sheet(title="Bilan Équité")
-    ws_scores.append(["Manipulateur", "Total Points (Charge)", "Total Astreintes", "Total L1", "Total L2", "Nb Week-ends"])
-    
-    for idx, m in enumerate(dict_scores.keys(), 2):
-        total_ast = dict_nbl1[m] + dict_nbl2[m]
-        ws_scores.cell(row=idx, column=1, value=m).border = border_thin
-        ws_scores.cell(row=idx, column=2, value=dict_scores[m]).border = border_thin
-        ws_scores.cell(row=idx, column=3, value=total_ast).border = border_thin
-        ws_scores.cell(row=idx, column=4, value=dict_nbl1[m]).border = border_thin
-        ws_scores.cell(row=idx, column=5, value=dict_nbl2[m]).border = border_thin
-        ws_scores.cell(row=idx, column=6, value=dict_scores_we[m]).border = border_thin
-        
-    for col in ['A', 'B', 'C', 'D', 'E', 'F']:
-        ws_scores.column_dimensions[col].width = 20
-        ws_scores.cell(row=1, column=ord(col)-64).fill = fill_header
-        ws_scores.cell(row=1, column=ord(col)-64).font = font_header
+    for col in range(1, 7):
+        ws_bilan.column_dimensions[chr(64+col)].width = 20
+        c_head = ws_bilan.cell(row=1, column=col)
+        c_head.fill, c_head.font, c_head.border = f_head, font_head, b_thin
 
     wb.save(output)
     return output.getvalue()
 
-# --- INTERFACE PRINCIPALE ---
+# ==========================================
+# 7. INTERFACE UTILISATEUR (UI)
+# ==========================================
 st.title("🏥 Planning de Radiologie Interventionnelle")
 
-col_cfg, col_res = st.columns([1, 2.2])
+c_cfg, c_res = st.columns([1, 2.2])
 
-with col_cfg:
+with c_cfg:
     st.header("1. Période (Trimestre)")
     st.session_state.d_start = st.date_input("Début", datetime.now())
     st.session_state.d_end = st.date_input("Fin", datetime.now() + timedelta(days=90))
 
+# --- SIDEBAR (ÉQUIPE) ---
 with st.sidebar:
     st.header("⚙️ GESTION DE L'ÉQUIPE")
     with st.expander("➕ Ajouter un manipulateur", expanded=False):
-        new_name = st.text_input("Nom & Prénom")
-        new_l1 = st.checkbox("Fait la Ligne 1", value=True)
-        new_l2 = st.checkbox("Fait la Ligne 2", value=True)
-        if st.button("Ajouter à l'équipe"):
-            if new_name and new_name not in st.session_state.merms_data:
-                lignes = [1] if new_l1 else []
-                if new_l2: lignes.append(2)
-                st.session_state.merms_data[new_name] = {"lignes": lignes, "score_cumule": 0, "score_we": 0, "nb_l1": 0, "nb_l2": 0, "pref_vendredi": False, "absences": []}
-                sauvegarder_donnees(st.session_state.merms_data)
-                st.rerun()
+        n_name = st.text_input("Nom & Prénom")
+        n_l1, n_l2 = st.checkbox("Fait la Ligne 1", True), st.checkbox("Fait la Ligne 2", True)
+        if st.button("Ajouter à l'équipe") and n_name and n_name not in st.session_state.merms_data:
+            st.session_state.merms_data[n_name] = {
+                "lignes": ([1] if n_l1 else []) + ([2] if n_l2 else []),
+                "score_cumule": 0, "score_we": 0, "nb_l1": 0, "nb_l2": 0, "pref_vendredi": False, "absences": []
+            }
+            sauvegarder_donnees(st.session_state.merms_data); st.rerun()
 
     st.write("---")
     st.write("**Équipe actuelle**")
-    for m in list(st.session_state.merms_data.keys()):
+    for m, data in list(st.session_state.merms_data.items()):
         c1, c2 = st.columns([4, 1])
-        l_txt = "L1/L2" if len(st.session_state.merms_data[m]['lignes']) == 2 else f"L{st.session_state.merms_data[m]['lignes'][0]}"
-        c1.caption(f"**{m}** ({l_txt})")
+        c1.caption(f"**{m}** ({'L1/L2' if len(data['lignes']) == 2 else f'L{data['lignes'][0]}'})")
         st.markdown('<div class="btn-supprimer">', unsafe_allow_html=True)
         if c2.button("🗑️", key=f"del_{m}"):
             del st.session_state.merms_data[m]
-            sauvegarder_donnees(st.session_state.merms_data)
-            st.rerun()
+            sauvegarder_donnees(st.session_state.merms_data); st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-with col_cfg:
+# --- COLONNE GAUCHE (DESIDERATA) ---
+with c_cfg:
     st.write("---")
     st.header("2. Desiderata")
-    for merm in st.session_state.merms_data.keys():
-        n_abs = len(st.session_state.merms_data[merm]["absences"])
-        if st.button(f"👤 {merm} ({n_abs} j. posés)", key=f"btn_{merm}"):
-            st.session_state.modal_ouvert = merm
-            st.rerun() 
+    for merm, data in st.session_state.merms_data.items():
+        if st.button(f"👤 {merm} ({len(data['absences'])} j. posés)", key=f"btn_{merm}"):
+            st.session_state.modal_ouvert = merm; st.rerun() 
 
-if st.session_state.modal_ouvert:
-    modal_desiderata(st.session_state.modal_ouvert)
+if st.session_state.modal_ouvert: modal_desiderata(st.session_state.modal_ouvert)
 
-with col_res:
+# --- COLONNE DROITE (GÉNÉRATION) ---
+with c_res:
     st.header("3. Génération & Export")
     st.markdown('<div class="btn-generer">', unsafe_allow_html=True)
     if st.button("🚀 CALCULER LA RÉPARTITION ÉQUITABLE", use_container_width=True):
-        df_resultat, scores_finaux, scores_we_finaux, nbl1_finaux, nbl2_finaux = generer_planning(st.session_state.d_start, st.session_state.d_end)
-        st.session_state.planning_final = df_resultat
-        st.session_state.scores_finaux = scores_finaux
-        st.session_state.scores_we_finaux = scores_we_finaux
-        st.session_state.nbl1_finaux = nbl1_finaux
-        st.session_state.nbl2_finaux = nbl2_finaux
+        res = generer_planning(st.session_state.d_start, st.session_state.d_end)
+        st.session_state.planning_final, st.session_state.scores_finaux, st.session_state.scores_we_finaux, st.session_state.nbl1_finaux, st.session_state.nbl2_finaux = res
     st.markdown('</div>', unsafe_allow_html=True)
 
     if 'planning_final' in st.session_state:
         st.write("---")
         excel_data = generer_excel_liste(st.session_state.planning_final, st.session_state.scores_finaux, st.session_state.scores_we_finaux, st.session_state.nbl1_finaux, st.session_state.nbl2_finaux)
-        nom_fichier = f"Planning_RI_{st.session_state.d_start.strftime('%m')}-{st.session_state.d_end.strftime('%m_%Y')}.xlsx"
-        
         st.download_button(
-            label="📥 TÉLÉCHARGEMENT EXCEL",
-            data=excel_data,
-            file_name=nom_fichier,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            type="primary",
-            use_container_width=True
+            label="📥 TÉLÉCHARGEMENT EXCEL", data=excel_data,
+            file_name=f"Planning_RI_{st.session_state.d_start.strftime('%m')}-{st.session_state.d_end.strftime('%m_%Y')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", use_container_width=True
         )
         st.write("---")
         
-        onglet_l1, onglet_l2, onglet_stats = st.tabs(["📋 PLANNING LIGNE 1", "📋 PLANNING LIGNE 2", "📈 BILAN D'ÉQUITÉ"])
-        with onglet_l1: st.table(st.session_state.planning_final[["Jour", "Date", "Ligne 1", "Type"]])
-        with onglet_l2: st.table(st.session_state.planning_final[["Jour", "Date", "Ligne 2", "Type"]])
-        with onglet_stats:
-            st.info("L'algorithme équilibre dans l'ordre : 1. Nbr de Week-ends -> 2. Pénibilité (Points Globaux) -> 3. Nbr Astreintes Totales -> 4. Ratio L1/L2.")
-            
-            df_bilan = pd.DataFrame({
+        t1, t2, t3 = st.tabs(["📋 PLANNING LIGNE 1", "📋 PLANNING LIGNE 2", "📈 BILAN D'ÉQUITÉ"])
+        with t1: st.table(st.session_state.planning_final[["Jour", "Date", "Ligne 1", "Type"]])
+        with t2: st.table(st.session_state.planning_final[["Jour", "Date", "Ligne 2", "Type"]])
+        with t3:
+            st.info("L'algorithme équilibre dans l'ordre : 1. Nbr de Week-ends -> 2. Pénibilité (Points) -> 3. Total Astreintes -> 4. Ratio L1/L2.")
+            st.table(pd.DataFrame({
                 "Total Points (Charge)": st.session_state.scores_finaux,
-                "Total Astreintes (L1+L2)": {m: st.session_state.nbl1_finaux[m] + st.session_state.nbl2_finaux[m] for m in st.session_state.merms_data.keys()},
-                "Total L1": st.session_state.nbl1_finaux,
-                "Total L2": st.session_state.nbl2_finaux,
-                "Nombre de Week-ends": st.session_state.scores_we_finaux
-            })
-            st.table(df_bilan)
+                "Total Astreintes": {m: st.session_state.nbl1_finaux[m] + st.session_state.nbl2_finaux[m] for m in st.session_state.merms_data},
+                "Total L1": st.session_state.nbl1_finaux, "Total L2": st.session_state.nbl2_finaux,
+                "Nb Week-ends": st.session_state.scores_we_finaux
+            }))
             
-            if st.button("💾 VALIDER CE TRIMESTRE ET SAUVEGARDER L'HISTORIQUE"):
+            st.markdown('<div class="btn-valider">', unsafe_allow_html=True)
+            if st.button("💾 VALIDER CE TRIMESTRE ET SAUVEGARDER L'HISTORIQUE", use_container_width=True):
                 for m in st.session_state.scores_finaux:
-                    st.session_state.merms_data[m]['score_cumule'] = st.session_state.scores_finaux[m]
-                    st.session_state.merms_data[m]['score_we'] = st.session_state.scores_we_finaux[m]
-                    st.session_state.merms_data[m]['nb_l1'] = st.session_state.nbl1_finaux[m]
-                    st.session_state.merms_data[m]['nb_l2'] = st.session_state.nbl2_finaux[m]
+                    st.session_state.merms_data[m].update({
+                        'score_cumule': st.session_state.scores_finaux[m], 'score_we': st.session_state.scores_we_finaux[m],
+                        'nb_l1': st.session_state.nbl1_finaux[m], 'nb_l2': st.session_state.nbl2_finaux[m]
+                    })
                 sauvegarder_donnees(st.session_state.merms_data)
-                st.success("✅ Historique sauvegardé ! La prochaine répartition s'appuiera sur ces données pour corriger les écarts restants.")
+                st.success("✅ Historique sauvegardé ! La prochaine répartition corrigera les écarts restants.")
+            st.markdown('</div>', unsafe_allow_html=True)
